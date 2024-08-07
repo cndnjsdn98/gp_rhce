@@ -23,7 +23,7 @@ import rospy
 
 from src.utils.quad import custom_quad_param_loader
 from acados_template import AcadosOcp, AcadosOcpSolver
-from scripts.quad_opt.quad_optimizer import QuadOptimizer
+from src.quad_opt.quad_optimizer import QuadOptimizer
 
 class QuadOptimizerMPC(QuadOptimizer):
     def __init__(self, quad, t_mpc=1, n_mpc=10, 

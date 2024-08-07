@@ -18,7 +18,7 @@ from geometry_msgs.msg import PoseStamped, TwistStamped
 from quadrotor_msgs.msg import ControlCommand
 from gp_rhce.msg import ReferenceTrajectory
 
-from scripts.quad_opt.quad_optimizer import QuadOptimizer
+from src.quad_opt.quad_optimizer import QuadOptimizer
 from src.utils.utils import v_dot_q, quaternion_inverse, safe_mkdir_recursive
 from src.visualization.visualization import trajectory_tracking_results, state_estimation_results
 from src.utils.quad import custom_quad_param_loader

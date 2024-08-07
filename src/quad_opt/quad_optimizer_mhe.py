@@ -22,7 +22,7 @@ import rospy
 from scipy.linalg import block_diag
 
 from src.utils.quad import custom_quad_param_loader
-from quad_optimizer import QuadOptimizer
+from src.quad_opt.quad_optimizer import QuadOptimizer
 
 class QuadOptimizerMHE(QuadOptimizer):
     def __init__(self, quad, t_mhe=0.5, n_mhe=50, mhe_type="kinematic",
@@ -332,5 +332,5 @@ def init_compile():
     quad_opt = QuadOptimizerMHE(quad)
 
 if __name__ == "__main__":
-    # main()
-    init_compile()
+    main()
+    # init_compile()

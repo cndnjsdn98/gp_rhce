@@ -18,7 +18,7 @@ import os
 def custom_quad_param_loader(quad_name):
 
     this_path = os.path.dirname(os.path.realpath(__file__))
-    params_file = os.path.join(this_path, '..', 'quads', quad_name + '.xacro')
+    params_file = os.path.join(this_path, '..', 'quads', quad_name, quad_name + '.xacro')
 
     # Get parameters for drone
     attrib = parse_xacro_file(params_file)
