@@ -1,0 +1,20 @@
+# GP
+with_gp: False
+mhe_model_name: ""
+mhe_model_version: ""
+
+# Mass change values
+change_mass: 0
+
+# PID Position Controller Weights
+throttle_kp: 12.
+throttle_ki: 0.0
+throttle_kd: 3
+
+position_kp: 3.
+position_ki: 0.0
+position_kd: 2.5
+
+body_rate_kp: 3
+body_rate_ki: 0.
+body_rate_kd: 0.00

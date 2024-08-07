@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+<launch>
+    <!-- "gazebo" or "arena" to indicate the environment-->
+    <arg name="env" default="arena"/>
+
+    <!-- MPC Parameters -->
+    <arg name="t_mpc" default="1"/>
+    <arg name="n_mpc" default="10"/>
+
+    <!-- Quad Name -->
+    <arg name="quad_name" default="clark"/>
+
+    <group if="$(eval arg('env') == 'gazebo')" ns="gp_mpc">
+        <rosparam file="$(find gp_rhce)/config/simulation_run.yaml"/>
+        <rosparam file="$(find gp_rhce)/quads/$(arg quad_name)_mpc.yaml"/>
+        <param name="environment" value="$(arg env)"/>
+        <param name="quad_name" value="$(arg quad_name)"/>
+        <param name="t_mpc" value="$(arg t_mpc)"/>
+        <param name="n_mpc" value="$(arg n_mpc)"/>
+        <!-- Node runs Acados Compiler code and GP_MPC node sequentially -->
+        <node name="gp_mpc_wrapper" pkg="gp_rhce" type="sequential_mpc.py" output="screen"/>
+    </group>        
+
+    <group if="$(eval arg('env') == 'arena')" ns="gp_mpc">
+        <rosparam file="$(find gp_rhce)/config/arena_run.yaml"/>
+        <rosparam file="$(find gp_rhce)/quads/$(arg quad_name)_mpc.yaml"/>
+        <param name="environment" value="$(arg env)"/>
+        <param name="quad_name" value="$(arg quad_name)"/>
+        <param name="t_mpc" value="$(arg t_mpc)"/>
+        <param name="n_mpc" value="$(arg n_mpc)"/>
+        <!-- Node runs Acados Compiler code and GP_MPC node sequentially -->
+        <node name="gp_mpc_wrapper" pkg="gp_rhce" type="sequential_mpc.py" output="screen"/>
+    </group>
+</launch>

@@ -1,0 +1,37 @@
+<?xml version="1.0"?>
+<launch>
+    <!-- "gazebo" or "arena" to indicate the environment-->
+    <arg name="env" default="arena"/>
+
+    <!-- MHE Parameters -->
+    <arg name="t_mhe" default="0.5"/>
+    <arg name="n_mhe" default="50"/>
+    <arg name="mhe_type" default="kinematic"/>
+
+    <!-- Quad Name -->
+    <arg name="quad_name" default="clark"/>
+
+    <group if="$(eval arg('env') == 'gazebo')" ns="gp_mhe">
+        <rosparam file="$(find gp_rhce)/config/simulation_run.yaml"/>
+        <rosparam file="$(find gp_rhce)/quads/$(arg quad_name)_mhe.yaml"/>
+        <param name="environment" value="$(arg env)"/>
+        <param name="quad_name" value="$(arg quad_name)"/>
+        <param name="t_mhe" value="$(arg t_mhe)"/>
+        <param name="n_mhe" value="$(arg n_mhe)"/>
+        <param name="mhe_type" value="$(arg mhe_type)"/>
+        <!-- Node runs Acados Compiler code and GP_MHE node sequentially -->
+        <node name="gp_mhe_wrapper" pkg="gp_rhce" type="sequential_mhe.py" output="screen"/>
+    </group>        
+
+    <group if="$(eval arg('env') == 'arena')" ns="gp_mhe">
+        <rosparam file="$(find gp_rhce)/config/arena_run.yaml"/>
+        <rosparam file="$(find gp_rhce)/quads/$(arg quad_name)_mhe.yaml"/>
+        <param name="environment" value="$(arg env)"/>
+        <param name="quad_name" value="$(arg quad_name)"/>
+        <param name="t_mhe" value="$(arg t_mhe)"/>
+        <param name="n_mhe" value="$(arg n_mhe)"/>
+        <param name="mhe_type" value="$(arg mhe_type)"/>
+        <!-- Node runs Acados Compiler code and GP_MHE node sequentially -->
+        <node name="gp_mhe_wrapper" pkg="gp_rhce" type="sequential_mhe.py" output="screen"/>
+    </group>
+</launch>

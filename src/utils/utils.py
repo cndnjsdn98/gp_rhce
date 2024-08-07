@@ -1,0 +1,176 @@
+""" Miscellaneous utility functions.
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+You should have received a copy of the GNU General Public License along with
+this program. If not, see <http://www.gnu.org/licenses/>.
+"""
+
+
+import os
+import errno
+import shutil
+import numpy as np
+import casadi as cs
+import xml.etree.ElementTree as XMLtree
+import pyquaternion
+
+def safe_mkdir_recursive(directory, overwrite=False):
+    if not os.path.exists(directory):
+        try:
+            os.makedirs(directory)
+        except OSError as exc:
+            if exc.errno == errno.EEXIST and os.path.isdir(directory):
+                pass
+            else:
+                raise
+    else:
+        if overwrite:
+            try:
+                shutil.rmtree(directory)
+            except:
+                print('Error while removing directory: {0}'.format(directory))
+
+def v_dot_q(v, q):
+    rot_mat = q_to_rot_mat(q)
+    if isinstance(q, np.ndarray):
+        return rot_mat.dot(v)
+
+    return cs.mtimes(rot_mat, v)
+
+def q_dot_q(q, r):
+    """
+    Applies the rotation of quaternion r to quaternion q. In order words, rotates quaternion q by r. Quaternion format:
+    wxyz.
+
+    :param q: 4-length numpy array or CasADi MX. Initial rotation
+    :param r: 4-length numpy array or CasADi MX. Applied rotation
+    :return: The quaternion q rotated by r, with the same format as in the input.
+    """
+
+    qw, qx, qy, qz = q[0], q[1], q[2], q[3]
+    rw, rx, ry, rz = r[0], r[1], r[2], r[3]
+
+    t0 = rw * qw - rx * qx - ry * qy - rz * qz
+    t1 = rw * qx + rx * qw - ry * qz + rz * qy
+    t2 = rw * qy + rx * qz + ry * qw - rz * qx
+    t3 = rw * qz - rx * qy + ry * qx + rz * qw
+
+    if isinstance(q, np.ndarray):
+        return np.array([t0, t1, t2, t3])
+    else:
+        return cs.vertcat(t0, t1, t2, t3)
+
+def q_to_rot_mat(q):
+    qw, qx, qy, qz = q[0], q[1], q[2], q[3]
+
+    if isinstance(q, np.ndarray):
+        rot_mat = np.array([
+            [1 - 2 * (qy ** 2 + qz ** 2), 2 * (qx * qy - qw * qz), 2 * (qx * qz + qw * qy)],
+            [2 * (qx * qy + qw * qz), 1 - 2 * (qx ** 2 + qz ** 2), 2 * (qy * qz - qw * qx)],
+            [2 * (qx * qz - qw * qy), 2 * (qy * qz + qw * qx), 1 - 2 * (qx ** 2 + qy ** 2)]])
+
+    else:
+        rot_mat = cs.vertcat(
+            cs.horzcat(1 - 2 * (qy ** 2 + qz ** 2), 2 * (qx * qy - qw * qz), 2 * (qx * qz + qw * qy)),
+            cs.horzcat(2 * (qx * qy + qw * qz), 1 - 2 * (qx ** 2 + qz ** 2), 2 * (qy * qz - qw * qx)),
+            cs.horzcat(2 * (qx * qz - qw * qy), 2 * (qy * qz + qw * qx), 1 - 2 * (qx ** 2 + qy ** 2)))
+
+    return rot_mat
+
+def skew_symmetric(v):
+    """
+    Computes the skew-symmetric matrix of a 3D vector (PAMPC version)
+
+    :param v: 3D numpy vector or CasADi MX
+    :return: the corresponding skew-symmetric matrix of v with the same data type as v
+    """
+
+    if isinstance(v, np.ndarray):
+        return np.array([[0, -v[0], -v[1], -v[2]],
+                         [v[0], 0, v[2], -v[1]],
+                         [v[1], -v[2], 0, v[0]],
+                         [v[2], v[1], -v[0], 0]])
+
+    return cs.vertcat(
+        cs.horzcat(0, -v[0], -v[1], -v[2]),
+        cs.horzcat(v[0], 0, v[2], -v[1]),
+        cs.horzcat(v[1], -v[2], 0, v[0]),
+        cs.horzcat(v[2], v[1], -v[0], 0))
+
+def quaternion_inverse(q):
+    w, x, y, z = q[0], q[1], q[2], q[3]
+
+    if isinstance(q, np.ndarray):
+        return np.array([w, -x, -y, -z])
+    else:
+        return cs.vertcat(w, -x, -y, -z)
+
+def quaternion_to_euler(q):
+    q = pyquaternion.Quaternion(w=q[0], x=q[1], y=q[2], z=q[3])
+    yaw, pitch, roll = q.yaw_pitch_roll
+    return [roll, pitch, yaw]
+
+def separate_variables(traj):
+    """
+    Reshapes a trajectory into expected format.
+
+    :param traj: N x 13 array representing the reference trajectory
+    :return: A list with the components: Nx3 position trajectory array, Nx4 quaternion trajectory array, Nx3 velocity
+    trajectory array, Nx3 body rate trajectory array
+    """
+
+    p_traj = traj[:, :3]
+    q_traj = traj[:, 3:7]
+    v_traj = traj[:, 7:10]
+    r_traj = traj[:, 10:]
+    
+    return [p_traj, q_traj, v_traj, r_traj]
+
+
+def unwrap(p):
+    # for i in range(len(p)-1):
+    #     if (p[i]-p[i+1]) > (2*np.pi-0.5):
+    #         p[i+1:] = p[i+1:] + (2*np.pi)
+    #     elif (p[i+1]-p[i]) < -(2*np.pi-0.5):
+    #         p[i+1:] = p[i+1:] - (2*np.pi)
+    dp = np.diff(p)
+    dps = np.mod(dp+np.pi, 2*np.pi)-np.pi
+    dps_loc = np.where((dps==-np.pi) & (dp>0))
+    dps[dps_loc] = np.pi
+    dp_corr = dps-dp
+    dp_corr_loc = np.where(abs(dp)<np.pi)
+    dp_corr[dp_corr_loc] = 0
+    p[1:] = p[1:] + np.cumsum(dp_corr)
+    return p
+
+def parse_xacro_file(xacro):
+    """
+    Reads a .xacro file describing a robot for Gazebo and returns a dictionary with its properties.
+    :param xacro: full path of .xacro file to read
+    :return: a dictionary of robot attributes
+    """
+
+    tree = XMLtree.parse(xacro)
+
+    attrib_dict = {}
+
+    for node in tree.getroot().getchildren():
+        # Get attributes
+        attributes = node.attrib
+
+        if 'value' in attributes.keys():
+            attrib_dict[attributes['name']] = attributes['value']
+
+        if node.getchildren():
+            try:
+                attrib_dict[attributes['name']] = [child.attrib for child in node.getchildren()]
+            except:
+                continue
+
+    return attrib_dict
