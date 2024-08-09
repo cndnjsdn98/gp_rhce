@@ -80,7 +80,7 @@ class ReferenceGenerator:
 
         rate = rospy.Rate(0.2)
         while not rospy.is_shutdown():
-
+            # NOTE: HOVER MODE IS NOT BEING ACCEPTED BY MPC NODE RIGHT NOW
             if not self.gp_mpc_busy and mode == "hover":
                 rospy.loginfo("Sending hover-in-place command")
                 msg = ReferenceTrajectory()
@@ -89,8 +89,6 @@ class ReferenceGenerator:
                 break
 
             if not self.gp_mpc_busy and curr_trajectory_ind == n_trajectories:
-                msg = ReferenceTrajectory()
-                reference_pub.publish(msg)
                 rospy.signal_shutdown("All trajectories were sent to the MPC")
                 break
 

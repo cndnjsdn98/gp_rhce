@@ -161,6 +161,14 @@ void Node::imuCallback(const sensor_msgs::Imu::ConstPtr& msg) {
 }
 
 void Node::recordMheCallback(const std_msgs::Bool::ConstPtr& msg) {
+    if (record_ && !msg->data) {
+        optimization_dt_ /= mhe_idx_;
+        ROS_INFO("Estimation complete. Mean MHE opt. time: %.3f ms", optimization_dt_*1000);
+        optimization_dt_ = 0;
+    } else if (!record_ && msg->data) {
+        optimization_dt_ = 0;
+        mhe_idx_ = 0;
+    }
     record_ = msg->data;
 }
 

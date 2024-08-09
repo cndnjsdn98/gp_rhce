@@ -182,7 +182,7 @@ class QuadOptimizer:
         # functions of the state and input vectors
         self.quad_xdot = {}
         self.quad_xdot_mhe = {}
-        self.quad_xdot_prop = self.quad_dynamics(prop=True, mhe=not mhe_type is None)
+        self.quad_xdot_prop = self.quad_dynamics(prop=True, mhe=not mhe_type is None, mhe_type=mhe_type)
 
         # Acados OCP solvers
         self.acados_mpc_solver = {}

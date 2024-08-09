@@ -47,7 +47,6 @@ Node::Node(ros::NodeHandle& nh) {
     x_available_ = false;
     // Start thread to publish mpc status
     status_thread_ = std::thread(&Node::run, this);
-    // TODO: If its near ground level just set control level to 0 or small value
 }
 
 /// Destructor
@@ -125,6 +124,7 @@ void Node::initRosService(ros::NodeHandle& nh) {
 void Node::referenceCallback(const gp_rhce::ReferenceTrajectory::ConstPtr& msg) {
     if (x_ref_.empty()) {
         ref_len_ = msg->seq_len;
+        // TODO: ACCEPT HOVER COMMANDS
         // if (ref_len_ == 0) {
         //     // Hover-in-place mode
         //     x_ref_.clear();
@@ -140,11 +140,7 @@ void Node::referenceCallback(const gp_rhce::ReferenceTrajectory::ConstPtr& msg) 
         // Save reference trajectory, inputs and relative times 
         std::vector<double> trajectory = msg->trajectory;
         x_ref_.resize(ref_len_, std::vector<double>(MPC_NX));
-        // TODO: Surely there's a neater way of doing this
         for (std::size_t i = 0; i < ref_len_; i++) {
-            // for (std::size_t j = 0; j < MPC_NX; j ++) {
-            //     x_ref_[i][j] = trajectory[i * MPC_NX + j];
-            // }
             std::copy(trajectory.begin() + (i * MPC_NX), trajectory.begin() + (i * MPC_NX) + MPC_NX, x_ref_[i].begin());
         }
         std::vector<double> u_ref = msg->inputs;
@@ -341,11 +337,11 @@ void Node::setReferenceTrajectory() {
                 ROS_INFO("Vehicle Disarmed");
             }
             // Compute MSE
-            double rmse = 0, max_vel = 0;
             optimization_dt_ /= mpc_idx_;
-            ROS_INFO("Tracking complte. Total Control RMSE %.3f m\n"
-                     "Max vel: %.2f m/s Mean MPC opt. time: %.3f ms", 
-                     rmse, max_vel, optimization_dt_);
+            // ROS_INFO("Tracking complte. Total Control RMSE %.3f m\n"
+            //          "Max vel: %.2f m/s Mean MPC opt. time: %.3f ms", 
+            //          rmse, max_vel, optimization_dt_);
+            ROS_INFO("Tracking complete. Mean MPC opt. time: %.3f ms", optimization_dt_*1000);
             x_ref_.clear();
             u_ref_.clear();
             t_ref_.clear();
