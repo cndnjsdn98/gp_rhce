@@ -133,6 +133,34 @@ class QuadOptimizer:
             self.w_d = np.zeros((0, 0))
             self.n_d = 0
 
+        # Model adjustments for MHE
+        if mhe_type == "kinematic":
+            # Full state vector (16-dimensional)
+            self.x = cs.vertcat(self.x, self.a)
+            self.x_dot = cs.vertcat(self.x_dot, self.a_dot)
+            self.state_dim = 16
+            # Full state noise vector (16-dimensional)
+            self.w = cs.vertcat(self.w, self.w_a)
+            # Update Full input state vector
+            self.u = cs.vertcat()
+            # Full measurement state vector
+            self.y = cs.vertcat(self.p, self.r, self.a)
+        elif mhe_type == "dynamic":
+            # Full state vector (13-dimensional)
+            self.x = cs.vertcat(self.x, self.d, self.param)
+            self.x_dot = cs.vertcat(self.x_dot, self.d_dot, self.param_dot)
+            if self.mhe_with_gpyTorch:
+                self.state_dim = 16
+            else:
+                self.state_dim = 13
+            # Full state noise vector (13-dimensional)
+            self.w = cs.vertcat(self.w, self.w_d)
+
+            f_thrust = self.u * self.quad.max_thrust / (self.quad.mass + self.k_m)
+            self.a = cs.vertcat(0.0, 0.0, (f_thrust[0] + f_thrust[1] + f_thrust[2] + f_thrust[3])) #a_thrust
+            # Full measurement state vector
+            self.y = cs.vertcat(self.p, self.r, self.d)
+        
         # The trigger variable is used to tell ACADOS to use the additional GP state estimate in the first optimization
         # node and the regular integrated state in the rest
         self.trigger_var = cs.MX.sym('trigger', 1)
@@ -345,11 +373,11 @@ class QuadOptimizer:
         x0 = self.x
 
         for _ in range(m_steps_per_point):
-            k1 = self.quad_xdot_prop(x=x, u=u)['x_dot']
-            k2 = self.quad_xdot_prop(x=x + dt / 2 * k1, u=u)['x_dot']
-            k3 = self.quad_xdot_prop(x=x + dt / 2 * k2, u=u)['x_dot']
-            k4 = self.quad_xdot_prop(x=x + dt * k3, u=u)['x_dot']
-            x_out = x + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
+            k1 = self.quad_xdot_prop(x=self.x, u=u)['x_dot']
+            k2 = self.quad_xdot_prop(x=self.x + dt / 2 * k1, u=u)['x_dot']
+            k3 = self.quad_xdot_prop(x=self.x + dt / 2 * k2, u=u)['x_dot']
+            k4 = self.quad_xdot_prop(x=self.x + dt * k3, u=u)['x_dot']
+            x_out = self.x + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
 
             x = x_out
 
@@ -368,39 +396,12 @@ class QuadOptimizer:
         :return: The sequence of mean and covariance estimates for every corresponding input, as well as the computed
         cost for each stage.
         """
-        if not isinstance(x_0, np.array):
+        if not isinstance(x_0, np.ndarray):
             x_0 = np.array(x_0)
 
+        f_func = self.discretize_dynamics(t_horizon, m_int_steps)
+        fk = f_func(x0=x_0, p=u_seq)
+        xf = np.array(fk['xf'])
 
-        # Reshape input sequence to a N x 4 (1D) vector. Control input dim = 4
-        k = np.arange(int(u_seq.shape[0] / 5))
-        input_sequence = cs.horzcat(u_seq[5 * k], u_seq[5 * k + 1], u_seq[5 * k + 2], u_seq[5 * k + 3], u_seq[5 * k + 4])
-        N = int(u_seq.shape[0] / 5)
-
-        dt = t_horizon / N * np.ones((N, 1))
-        if len(dt.shape) == 1:
-            dt = np.expand_dims(dt, 1)
-
-        # Initialize sequence of propagated states
-        mu_x = [x_0]
-
-        for k in range(N):
-            # Get current control input and current state mean and covariance
-            u_k = input_sequence[k, :]
-            mu_k = mu_x[k]
-
-            # mu(k+1) vector from propagation equations. Pass state through nominal dynamics with GP mean augmentation if GP
-            # is available. Otherwise use nominal dynamics only.
-            f_func = self.discretize_dynamics(dt[k], m_int_steps)
-
-            fk = f_func(x0=mu_k, p=u_k)
-            mu_next = fk['xf']
-
-            # Add next state estimate to lists
-            mu_x += [mu_next]
-
-        mu_x = cs.horzcat(*mu_x)
-        mu_prop = np.array(mu_x).T
-
-        return mu_prop
+        return xf
 

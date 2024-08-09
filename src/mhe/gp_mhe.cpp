@@ -37,7 +37,7 @@ GP_MHE::GP_MHE(std::string& mhe_type) {
     gpy_corr_ = {0, 0, 0};
     if (mhe_type_ == "kinematic") {
         x0_bar_ = {0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9.81};
-    } else if (mhe_type == "dynamic") {
+    } else if (mhe_type_ == "dynamic") {
         x0_bar_ = {0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0};
     }
     yref_0_.reserve(NY0);

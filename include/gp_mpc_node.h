@@ -27,12 +27,14 @@ private:
 
     // System States
     std::vector<double> x_, u_;
+    bool x_available_;
+    std::thread status_thread_;
 
     // MPC variables
     std::vector<double> x_opt_, u_opt_;
     int control_freq_factor_;
     bool optimize_next_ = false, x_initial_reached_ = false,
-         landing_ = false;
+         landing_ = false,  ground_level_ = true;
     std::thread mpc_thread_;
     double quad_max_thrust_, quad_mass_; // only used in Gazebo env
 
@@ -93,6 +95,8 @@ public:
     // Helper methods
     void runMPC();
     void setReferenceTrajectory();
+
+    void run();
 };
 
 #endif

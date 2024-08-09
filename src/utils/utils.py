@@ -116,6 +116,33 @@ def quaternion_to_euler(q):
     yaw, pitch, roll = q.yaw_pitch_roll
     return [roll, pitch, yaw]
 
+def rotation_matrix_to_quat(rot):
+    """
+    Calculate a quaternion from a 3x3 rotation matrix.
+
+    :param rot: 3x3 numpy array, representing a valid rotation matrix
+    :return: a quaternion corresponding to the 3D rotation described by the input matrix. Quaternion format: wxyz
+    """
+
+    q = pyquaternion.Quaternion(matrix=rot)
+    return np.array([q.w, q.x, q.y, q.z])
+
+
+def undo_quaternion_flip(q_past, q_current):
+    """
+    Detects if q_current generated a quaternion jump and corrects it. Requires knowledge of the previous quaternion
+    in the series, q_past
+    :param q_past: 4-dimensional vector representing a quaternion in wxyz form.
+    :param q_current: 4-dimensional vector representing a quaternion in wxyz form. Will be corrected if it generates
+    a flip wrt q_past.
+    :return: q_current with the flip removed if necessary
+    """
+
+    if np.sqrt(np.sum((q_past - q_current) ** 2)) > np.sqrt(np.sum((q_past + q_current) ** 2)):
+        return -q_current
+    return q_current
+
+
 def separate_variables(traj):
     """
     Reshapes a trajectory into expected format.

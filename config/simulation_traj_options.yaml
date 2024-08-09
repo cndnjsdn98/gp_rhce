@@ -6,3 +6,4 @@ loop_v_max: 6.0       # Maximum speed achieved (approx.) [m/s]
 loop_lin_a: 0.25       # Linear acceleration and deceleration of trajectory [m/s^2]
 loop_clockwise: False  # Rotation direction of the quad
 loop_yawing: False     # Yaw quadrotor along the circle (only for loop)
+world_limits: None

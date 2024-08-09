@@ -44,15 +44,20 @@ Node::Node(ros::NodeHandle& nh) {
     // Initial Position reached threshold and velocity
     init_thr_ = 0.1;
     init_v_ = 0.3;
+    x_available_ = false;
+    // Start thread to publish mpc status
+    status_thread_ = std::thread(&Node::run, this);
+    // TODO: If its near ground level just set control level to 0 or small value
 }
-
-
 
 /// Destructor
 Node::~Node() {
     ROS_INFO("MPC Destructor is called!");
     if (mpc_thread_.joinable()) {
         mpc_thread_.join();
+    }
+    if (status_thread_.joinable()) {
+        status_thread_.join();
     }
     delete gp_mpc_;
 }
@@ -82,7 +87,7 @@ void Node::initLaunchParameters(ros::NodeHandle& nh) {
     nh.param<std::string>(ns + "/control_topic", control_topic_, "/mavros/setpoint_raw/attitude");
     nh.param<std::string>(ns + "/motor_thrust_topic", motor_thrust_topic_, "/" + quad_name_ + "/motor_thrust");
     nh.param<std::string>(ns + "/record_topic", record_topic_, "/" + quad_name_ + "/record"); 
-    nh.param<std::string>(ns + "/status_topic", status_topic_, "/mpc/status"); 
+    nh.param<std::string>(ns + "/status_topic", status_topic_, "/mpc/busy"); 
     // Gazebo Specific Publisher topic names
     nh.param<std::string>(ns + "/control_gz_topic", control_gz_topic_, "/" + quad_name_ + "/autopilot/control_command_input");
 
@@ -196,6 +201,7 @@ void Node::stateEstCallback(const nav_msgs::Odometry::ConstPtr& msg) {
     x_.insert(x_.end(), v.begin(), v.end());
     x_.insert(x_.end(), w.begin(), w.end());
 
+    x_available_ = true;
 
     // Only optimize once every two messages (ie. state est: 100Hz, control: 50Hz)
     if (!optimize_next_) {
@@ -247,7 +253,7 @@ void Node::stateEstCallback(const nav_msgs::Odometry::ConstPtr& msg) {
 }
 
 void Node::runMPC() {
-    if (x_.empty()) {
+    if (!x_available_) {
         ROS_WARN("State Estimation Not available.");
         return;
     }
@@ -276,7 +282,11 @@ void Node::runMPC() {
         next_control.body_rate.y = x_opt_[IDX_RATE_Y];
         next_control.body_rate.z = x_opt_[IDX_RATE_Z];
         next_control.type_mask = 128;
-        next_control.thrust = (u_opt_[0] + u_opt_[1] + u_opt_[2] + u_opt_[3]) / 4;
+        double thrust = (u_opt_[0] + u_opt_[1] + u_opt_[2] + u_opt_[3]) / 4;
+        if (ground_level_) {
+            thrust *= 0.01;
+        } 
+        next_control.thrust = thrust;
         control_pub_.publish(next_control);
     } else if (environment_ == "gazebo") {
         quadrotor_msgs::ControlCommand next_control;
@@ -290,6 +300,9 @@ void Node::runMPC() {
         double collective_thrust = (u_opt_[0] + u_opt_[1] + u_opt_[2] + u_opt_[3]);
         collective_thrust *= quad_max_thrust_;
         collective_thrust /= quad_mass_ ;
+        if (ground_level_) {
+            collective_thrust *= 0.01;
+        }
         next_control.collective_thrust = collective_thrust ;
         control_gz_pub_.publish(next_control);
     }
@@ -301,6 +314,10 @@ void Node::runMPC() {
 }
 
 void Node::setReferenceTrajectory() {
+    if (!x_available_) {
+        return;
+    }
+
     // Check if landing mode
     if (landing_) {
         std::vector<std::vector<double>> x_ref(1, std::vector<double>(MPC_NX, 0.0));
@@ -311,6 +328,8 @@ void Node::setReferenceTrajectory() {
         
         // Reached landing height
         if (std::abs(x_[2] - land_z_) < land_z_thr_) {
+            ROS_INFO("Vehicle at Ground Level");
+            ground_level_ = true;
             if (environment_ == "arena") {
                 mavros_msgs::CommandBool disarm_cmd;
                 disarm_cmd.request.value = false;
@@ -345,13 +364,13 @@ void Node::setReferenceTrajectory() {
         if (x_ref_prov_.empty()) {
             x_ref_prov_.insert(x_ref_prov_.end(), x_.begin(), x_.begin() + N_POSITION_STATES + N_QUATERNION_STATES);
             x_ref_prov_.insert(x_ref_prov_.end(), N_VELOCITY_STATES + N_RATE_STATES , 0);
-            ROS_INFO("Entering provisional hovering mode.");
+            ROS_INFO("Selecting current position as provisional setpoint.");
         }
         // Fill x_ref with x_ref_prov_
         for (auto& row: x_ref) {
             std::copy(x_ref_prov_.begin(), x_ref_prov_.end(), row.begin());
         }
-        // Fill u_ref with u_ref_prov_
+        // Fill u_ref with u_ref_prov_x_available_
         for (auto& row: u_ref) {
             std::copy(u_ref_prov_.begin(), u_ref_prov_.end(), row.begin());
         }
@@ -362,6 +381,7 @@ void Node::setReferenceTrajectory() {
     if (!x_ref_prov_.empty()) {
         x_ref_prov_.clear();
         u_ref_prov_.clear();
+        ground_level_ = false;
         ROS_INFO("Abandoning Provisional Hovering Mode.");
     }
 
@@ -438,6 +458,16 @@ void Node::setReferenceTrajectory() {
         msg.data = false;
         record_pub_.publish(msg);
         return gp_mpc_->setReference(x_ref, u_ref);
+    }
+}
+
+void Node::run() {
+    ros::Rate rate(1);
+    while (!ros::isShuttingDown()) {
+        std_msgs::Bool msg;
+        msg.data = !(x_ref_.empty() && x_available_);
+        status_pub_.publish(msg);
+        rate.sleep();
     }
 }
 

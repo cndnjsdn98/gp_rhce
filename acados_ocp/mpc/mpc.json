@@ -2007,7 +2007,7 @@
         "ny_e": 13,
         "nz": 0
     },
-    "json_file": "/home/wonoo/GP_RHCE/catkin_ws/src/gp_rhce/acados_ocp/mpc/mpc.json",
+    "json_file": "/home/wonoo/GP_RHCE/catkin_ws/src/gp_rhce/src/quad_opt/../../acados_ocp/mpc/mpc.json",
     "model": {
         "con_h_expr": null,
         "con_h_expr_e": null,

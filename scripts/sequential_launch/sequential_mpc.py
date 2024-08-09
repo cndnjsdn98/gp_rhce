@@ -7,15 +7,15 @@ def main():
     rospy.init_node('sequential_mpc', anonymous=True)
 
     # Launch the Python node
-    rospy.loginfo("Launching Python node to generate Acados model...")
+    rospy.loginfo("Launching Python node to generate MPC Acados model...")
     model_gen_node = subprocess.Popen(['rosrun', 'gp_rhce', 'quad_optimizer_mpc.py'])
     
     # Wait for the Python node to complete
     model_gen_node.wait()
     if model_gen_node.returncode == 0:
-        rospy.loginfo("Model Compilation completed successfully. Launching gp_mpc node...")
+        rospy.loginfo("MPC Model Compilation completed successfully. Launching gp_mpc node...")
     else:
-        rospy.logerr("Model Compilation failed with return code %d", model_gen_node.returncode)
+        rospy.logerr("MP Model Compilation failed with return code %d", model_gen_node.returncode)
         return  # Exit the function if the first program failed
 
     time.sleep(3)
@@ -25,7 +25,7 @@ def main():
 
     # Wait for the C++ node to complete (optional)
     mpc_node.wait()
-    rospy.loginfo("Closing mpc Node")
+    rospy.loginfo("Closing MPC Node")
 
 if __name__ == '__main__':
     main()

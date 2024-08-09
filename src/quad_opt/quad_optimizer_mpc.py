@@ -175,8 +175,7 @@ class QuadOptimizerMPC(QuadOptimizer):
 def main():
     rospy.init_node("acados_compiler_mhe", anonymous=True)
     ns = rospy.get_namespace()
-    print(ns)
-
+    
     # Load MHE parameters
     n_mpc = rospy.get_param(ns + 'n_mpc', default=10)
     t_mpc = rospy.get_param(ns + 't_mpc', default=1)

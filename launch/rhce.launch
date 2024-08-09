@@ -1,0 +1,82 @@
+<?xml version="1.0"?>
+<launch>    
+    <!-- Quad Name -->
+    <arg name="quad_name" default="clark"/>
+    <!-- "gazebo" or "arena" to indicate the environment-->
+    <arg name="env" default="arena"/>
+
+    <!-- MPC Parameters -->
+    <arg name="t_mpc" default="1"/>
+    <arg name="n_mpc" default="10"/>
+
+     <!-- MHE Parameters -->
+    <arg name="t_mhe" default="0.5"/>
+    <arg name="n_mhe" default="50"/>
+    <arg name="mhe_type" default="kinematic"/>
+
+    <!-- Use Ground truth Odometry instead of State Estimation -->
+    <arg name="use_groundtruth" default="True"/>
+
+    <!-- Parameter Indicating GPy  -->
+    <arg name="with_gp" default="False"/>
+
+
+    <!-- Gazebo Env -->
+    <group if="$(eval arg('env') == 'gazebo')">
+        <!-- MHE -->
+        <group ns="gp_mhe">
+            <rosparam file="$(find gp_rhce)/config/simulation_run.yaml"/>
+            <rosparam file="$(find gp_rhce)/quads/$(arg quad_name)/$(arg quad_name)_mhe.yaml"/>
+            <param name="environment" value="$(arg env)"/>
+            <param name="quad_name" value="$(arg quad_name)"/>
+            <param name="t_mhe" value="$(arg t_mhe)"/>
+            <param name="n_mhe" value="$(arg n_mhe)"/>
+            <param name="mhe_type" value="$(arg mhe_type)"/>
+            <!-- Node runs Acados Compiler code and GP_MHE node sequentially -->
+            <node name="gp_mhe_wrapper" pkg="gp_rhce" type="sequential_mhe.py" output="screen"/>
+        </group>
+        <!-- MPC -->
+        <group ns="gp_mpc">
+            <rosparam file="$(find gp_rhce)/config/simulation_run.yaml"/>
+            <rosparam file="$(find gp_rhce)/quads/$(arg quad_name)/$(arg quad_name)_mpc.yaml"/>
+            <param name="environment" value="$(arg env)"/>
+            <param name="quad_name" value="$(arg quad_name)"/>
+            <param name="t_mpc" value="$(arg t_mpc)"/>
+            <param name="n_mpc" value="$(arg n_mpc)"/>
+            <param name="use_groundtruth" value="$(arg use_groundtruth)"/>
+            <param name="with_gp" value="$(arg with_gp)"/>
+            <!-- Node runs Acados Compiler code and GP_MPC node sequentially -->
+            <node name="gp_mpc_wrapper" pkg="gp_rhce" type="sequential_mpc.py" output="screen"/>
+        </group>
+    </group>      
+
+    <!-- Arena Env -->
+    <group if="$(eval arg('env') == 'arena')">
+        <!-- MHE -->
+        <group ns="gp_mhe">
+            <rosparam file="$(find gp_rhce)/config/arena_run.yaml"/>
+            <rosparam file="$(find gp_rhce)/quads/$(arg quad_name)/$(arg quad_name)_mhe.yaml"/>
+            <param name="environment" value="$(arg env)"/>
+            <param name="quad_name" value="$(arg quad_name)"/>
+            <param name="t_mhe" value="$(arg t_mhe)"/>
+            <param name="n_mhe" value="$(arg n_mhe)"/>
+            <param name="mhe_type" value="$(arg mhe_type)"/>
+            <!-- Node runs Acados Compiler code and GP_MHE node sequentially -->
+            <node name="gp_mhe" pkg="gp_rhce" type="sequential_mhe.py" output="screen"/>
+        </group>
+        <!-- MPC -->
+        <group ns="gp_mpc">
+            <rosparam file="$(find gp_rhce)/config/arena_run.yaml"/>
+            <rosparam file="$(find gp_rhce)/quads/$(arg quad_name)/$(arg quad_name)_mpc.yaml"/>
+            <param name="environment" value="$(arg env)"/>
+            <param name="quad_name" value="$(arg quad_name)"/>
+            <param name="t_mpc" value="$(arg t_mpc)"/>
+            <param name="n_mpc" value="$(arg n_mpc)"/>
+            <param name="use_groundtruth" value="$(arg use_groundtruth)"/>
+            <param name="with_gp" value="$(arg with_gp)"/>
+            <!-- Node runs Acados Compiler code and GP_MPC node sequentially -->
+            <node name="gp_mpc" pkg="gp_rhce" type="sequential_mpc.py" output="screen"/>
+        </group>
+    </group>
+    
+</launch>

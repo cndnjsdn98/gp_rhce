@@ -1,7 +1,5 @@
 <?xml version="1.0"?>
 <launch>
-    <!-- Node runs Acados Compiler code and GP_MHE node sequentially -->
-    <node name="visualizer_node" pkg="gp_rhce" type="visualizer_node.py" output="screen">
-        <param name="results_dir" value="$(find gp_rhce)/results/"/>
-    </node>
+    <param name="results_dir" value="$(find gp_rhce)/results/"/>
+    <node name="visualizer_node" pkg="gp_rhce" type="visualizer_node.py" output="screen"/>
 </launch>

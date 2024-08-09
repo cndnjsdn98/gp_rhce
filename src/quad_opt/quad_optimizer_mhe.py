@@ -108,32 +108,32 @@ class QuadOptimizerMHE(QuadOptimizer):
         self.N_mhe = n_mhe  # number of nodes within estimation horizon
 
 
-        if mhe_type == "kinematic":
-            # Full state vector (16-dimensional)
-            self.x = cs.vertcat(self.x, self.a)
-            self.x_dot = cs.vertcat(self.x_dot, self.a_dot)
-            self.state_dim = 16
-            # Full state noise vector (16-dimensional)
-            self.w = cs.vertcat(self.w, self.w_a)
-            # Update Full input state vector
-            self.u = cs.vertcat()
-            # Full measurement state vector
-            self.y = cs.vertcat(self.p, self.r, self.a)
-        elif mhe_type == "dynamic":
-            # Full state vector (13-dimensional)
-            self.x = cs.vertcat(self.x, self.d, self.param)
-            self.x_dot = cs.vertcat(self.x_dot, self.d_dot, self.param_dot)
-            if self.mhe_with_gpyTorch:
-                self.state_dim = 16
-            else:
-                self.state_dim = 13
-            # Full state noise vector (13-dimensional)
-            self.w = cs.vertcat(self.w, self.w_d)
+        # if mhe_type == "kinematic":
+        #     # Full state vector (16-dimensional)
+        #     self.x = cs.vertcat(self.x, self.a)
+        #     self.x_dot = cs.vertcat(self.x_dot, self.a_dot)
+        #     self.state_dim = 16
+        #     # Full state noise vector (16-dimensional)
+        #     self.w = cs.vertcat(self.w, self.w_a)
+        #     # Update Full input state vector
+        #     self.u = cs.vertcat()
+        #     # Full measurement state vector
+        #     self.y = cs.vertcat(self.p, self.r, self.a)
+        # elif mhe_type == "dynamic":
+        #     # Full state vector (13-dimensional)
+        #     self.x = cs.vertcat(self.x, self.d, self.param)
+        #     self.x_dot = cs.vertcat(self.x_dot, self.d_dot, self.param_dot)
+        #     if self.mhe_with_gpyTorch:
+        #         self.state_dim = 16
+        #     else:
+        #         self.state_dim = 13
+        #     # Full state noise vector (13-dimensional)
+        #     self.w = cs.vertcat(self.w, self.w_d)
 
-            f_thrust = self.u * self.quad.max_thrust / (self.quad.mass + self.k_m)
-            self.a = cs.vertcat(0.0, 0.0, (f_thrust[0] + f_thrust[1] + f_thrust[2] + f_thrust[3])) #a_thrust
-            # Full measurement state vector
-            self.y = cs.vertcat(self.p, self.r, self.d)
+        #     f_thrust = self.u * self.quad.max_thrust / (self.quad.mass + self.k_m)
+        #     self.a = cs.vertcat(0.0, 0.0, (f_thrust[0] + f_thrust[1] + f_thrust[2] + f_thrust[3])) #a_thrust
+        #     # Full measurement state vector
+        #     self.y = cs.vertcat(self.p, self.r, self.d)
 
         if self.mhe_with_gpyTorch:
             self.mhe_gpy_ensemble = mhe_gpy_ensemble
@@ -268,7 +268,6 @@ class QuadOptimizerMHE(QuadOptimizer):
 def main():
     rospy.init_node("acados_compiler_mhe", anonymous=True)
     ns = rospy.get_namespace()
-    print(ns)
 
     # Load MHE parameters
     n_mhe = rospy.get_param(ns + 'n_mhe', default=50)

@@ -4,7 +4,8 @@ import matplotlib.pyplot as plt
 from src.utils.utils import separate_variables, quaternion_inverse, \
                             quaternion_to_euler, unwrap, q_dot_q, v_dot_q
 
-def trajectory_tracking_results(img_save_dir, t_ref, x_ref, x_executed, u_ref, u_executed, w_control=None, legend_labels=None,
+def trajectory_tracking_results(img_save_dir, t_ref, x_ref, x_executed, u_ref, u_executed, mpc_error,
+                                w_control=None, legend_labels=None,
                                 quat_error=True, file_type='png'):
     if legend_labels is None:
         legend_labels = ['reference', 'executed']
@@ -206,6 +207,21 @@ def trajectory_tracking_results(img_save_dir, t_ref, x_ref, x_executed, u_ref, u
     ax.set_ylabel(r'$y [m]$')
     ax.set_zlabel(r'$z [m]$')
     fig.savefig(img_save_dir + '/px_py_pz_tracking_error.'+file_type, dpi=None, facecolor='w', edgecolor='w',
+                orientation='portrait', format=file_type,
+                transparent=False, bbox_inches=None, metadata=None)
+    plt.close(fig)
+
+    fig, ax = plt.subplots(3, 1, figsize=(13, 14))
+    for i in range(3):
+        ax[i].plot(x_executed[:, i+7], mpc_error[:, i+7], 'o', label=legend_labels[1])
+        tit = 'dq_' + labels[i]
+        ax[i].set_ylabel(tit)
+        ax[i].legend()
+        ax[i].grid()
+    ax[0].set_title(r'$Model Error$')
+    ax[2].set_xlabel(r'$v [m/s]$')
+    plt.tight_layout()
+    fig.savefig(img_save_dir + '/model_error.'+file_type, dpi=None, facecolor='w', edgecolor='w',
                 orientation='portrait', format=file_type,
                 transparent=False, bbox_inches=None, metadata=None)
     plt.close(fig)

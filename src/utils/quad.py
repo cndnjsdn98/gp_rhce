@@ -18,7 +18,7 @@ import os
 def custom_quad_param_loader(quad_name):
 
     this_path = os.path.dirname(os.path.realpath(__file__))
-    params_file = os.path.join(this_path, '..', 'quads', quad_name, quad_name + '.xacro')
+    params_file = os.path.join(this_path, '..', '..', 'quads', quad_name, quad_name + '.xacro')
 
     # Get parameters for drone
     attrib = parse_xacro_file(params_file)
@@ -90,11 +90,11 @@ class Quadrotor:
         self.angle = np.array([1., 0., 0., 0.])  # Quaternion format: qw, qx, qy, qz
         self.a_rate = np.zeros((3,))
 
-        # System state space for GP evaluation.
-        self.gp_pos = None
-        self.gp_vel = None
-        self.gp_angle = None
-        self.gp_a_rate = None
+        # # System state space for GP evaluation.
+        # self.gp_pos = None
+        # self.gp_vel = None
+        # self.gp_angle = None
+        # self.gp_a_rate = None
 
         # Input constraints
         self.max_input_value = 1  # Motors at full thrust

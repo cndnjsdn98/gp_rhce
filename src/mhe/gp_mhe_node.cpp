@@ -25,8 +25,12 @@ Node::Node(ros::NodeHandle& nh) {
     assert(quad_name_ != "");
     ROS_INFO("MHE: %s Loaded in %s", quad_name_.c_str(), environment_.c_str());
 
-    // Init Variables
-    x_est_.reserve(MHE_NX);
+    // Init x_est_
+    if (mhe_type_ == "kinematic") {
+        x_est_ = {0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9.81};
+    } else if (mhe_type_ == "dynamic") {
+        x_est_ = {0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    }
 }
 
 
@@ -62,7 +66,6 @@ void Node::initLaunchParameters(ros::NodeHandle& nh) {
     // Publisher topic names
     nh.param<std::string>(ns + "/state_est_topic", state_est_topic_, "/" + quad_name_ + "/state_est");
     nh.param<std::string>(ns + "/acceleration_est_topic", acceleration_est_topic_, "/" + quad_name_ + "/acceleration_est");
-    nh.param<std::string>(ns + "/status_topic", status_topic_, "/mhe/status" ); 
 }
 
 void Node::initSubscribers(ros::NodeHandle& nh) {
@@ -84,9 +87,6 @@ void Node::initSubscribers(ros::NodeHandle& nh) {
 }
 
 void Node::initPublishers(ros::NodeHandle& nh) {
-    // ros::TransportHints transport_hints;
-    // transport_hints.tcpNoDelay(true);
-    status_pub_ = nh.advertise<std_msgs::Bool> (status_topic_, 1, true);
     acceleration_est_pub_ = nh.advertise<sensor_msgs::Imu> (acceleration_est_topic_, 10, true);
     state_est_pub_ = nh.advertise<nav_msgs::Odometry> (state_est_topic_, 10, true);
 }
@@ -161,12 +161,6 @@ void Node::imuCallback(const sensor_msgs::Imu::ConstPtr& msg) {
 }
 
 void Node::recordMheCallback(const std_msgs::Bool::ConstPtr& msg) {
-    if (record_ == true and msg->data == false) {
-        record_ = msg->data;
-        // Run thread for saving the recorded data
-        // TODO--------------
-    }
-
     record_ = msg->data;
 }
 
@@ -234,11 +228,11 @@ void Node::runMHE() {
     } catch (const std::runtime_error& e) {
         ROS_WARN("Tried to run an MHE optimization but MHE is not ready yet.");
         return;
-    }
+    }  
 
     if (!x_est_.empty()) {
         if (mhe_type_ == "kinematic") {
-            std::vector<double> acceleration_est;
+            std::vector<double> acceleration_est(3, 0.0);
             std::copy(x_est_.begin() + 13, x_est_.end(), acceleration_est.begin());
             sensor_msgs::Imu acceleration_est_msg;
             acceleration_est_msg.header.stamp = ros::Time::now();
@@ -273,11 +267,6 @@ void Node::runMHE() {
         state_est_msg.twist.twist.angular.y = x_est_[11];
         state_est_msg.twist.twist.angular.z = x_est_[12];
         state_est_pub_.publish(state_est_msg);
-    }
-
-    if (record_) {
-        // Publish recording
-        // std::cout << "record mhe\n";
     }
     return;
 }

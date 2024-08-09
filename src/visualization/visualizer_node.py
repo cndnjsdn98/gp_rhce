@@ -24,7 +24,7 @@ from src.visualization.visualization import trajectory_tracking_results, state_e
 from src.utils.quad import custom_quad_param_loader
 
 class VisualizerWrapper:
-    def init(self):
+    def __init__(self):
         # Get Params
         self.quad_name = rospy.get_param("gp_mpc/quad_name", default="clark")
         self.env = rospy.get_param("gp_mpc/environment", default="arena")
@@ -41,7 +41,10 @@ class VisualizerWrapper:
         self.mhe_with_gp = rospy.get_param("gp_mhe/with_gp", default=False)
 
         ns = rospy.get_namespace()
-        self.results_dir = rospy.get_param(ns + "results_dir", default="./../../results/")
+        self.results_dir = rospy.get_param("results_dir", default=None)
+        # if self.results_dir is None:
+        #     self.results_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'results')
+        assert self.results_dir is not None
         self.mpc_meta = {
             'quad_name': self.quad_name,
             'env': self.env,
@@ -57,7 +60,7 @@ class VisualizerWrapper:
             'n_mhe': self.n_mhe,
             'with_gp': self.mhe_with_gp,
         }
-        self.mpc_dataset_name = "%s_mpc_%s%s"%(self.env, "gt_" if self.use_groundturth else "", self.quad_name)
+        self.mpc_dataset_name = "%s_mpc_%s%s"%(self.env, "gt_" if self.use_groundtruth else "", self.quad_name)
         self.mhe_dataset_name = "%s_mhe_%s"%(self.env, self.quad_name)
         self.mpc_dir = os.path.join(self.results_dir, self.mpc_dataset_name)
         self.mhe_dir = os.path.join(self.results_dir, self.mhe_dataset_name)
@@ -73,12 +76,12 @@ class VisualizerWrapper:
         twist_topic = rospy.get_param("/gp_mhe/twist_topic", default ="/mocap/" + self.quad_name + "/twist")
         odom_gz_topic = rospy.get_param("/gp_mhe/odom_gz_topic", default = "/" + self.quad_name + "/ground_truth/odometry")
         imu_topic = rospy.get_param("/gp_mhe/imu_topic", default = "/mavros/imu/data_raw") 
-        motor_thrust_topic = rospy.get_param("/gp_mhe/imu_topic", default = "/" + self.quad_name + "/motor_thrust")
         state_est_topic = rospy.get_param("/gp_mhe/state_est_topic", default = "/" + self.quad_name + "/state_est")
         acceleration_est_topic = rospy.get_param("/gp_mhe/acceleration_est_topic", default = "/" + self.quad_name + "/acceleration_est")
+        motor_thrust_topic = rospy.get_param("/gp_mpc/motor_thrust_topic", default = "/" + self.quad_name + "/motor_thrust")
         ref_topic = rospy.get_param("/gp_mpc/ref_topic", default = "/gp_mpc/reference")
         control_topic = rospy.get_param("/gp_mpc/control_topic", default = "/mavros/setpoint_raw/attitude")
-        control_gz_topic = rospy.get_param("/gp_mpc/control_gz_topic", default = "/" + self.quad_name + "autopilot/control_command_input")
+        control_gz_topic = rospy.get_param("/gp_mpc/control_gz_topic", default = "/" + self.quad_name + "/autopilot/control_command_input")
         record_topic = rospy.get_param("/gp_mpc/record_topic", default = "/" + self.quad_name + "/record")
 
         # Subscribers
@@ -122,40 +125,57 @@ class VisualizerWrapper:
         self.p_meas = None
         self.w_meas = None
         self.a_meas = None
+        rospy.loginfo("Visualizer on standby listening...")
 
     def save_recording_data(self):
         # Remove Exceeding data entry if needed
-        if len(self.x_act) > len(self.motor_thrusts):
-            self.x_act = self.x_act[:-1]
-        
+        min_len = np.min((len(self.x_act), len(self.motor_thrusts)))
+        self.x_act = self.x_act[:min_len]
+        self.t_act = self.t_act[:min_len]
+        self.motor_thrusts = self.motor_thrusts[:min_len]
         # Save MPC results
-        mpc_error = np.zeros_like(self.x_act)
-        x_pred_traj = np.zeros_like(self.x_act)
+        state_in = np.zeros((int(len(self.x_act)/2), self.x_act.shape[1]))
+        state_out = np.zeros((len(state_in), self.x_act.shape[1]))
+        u_in = np.zeros((len(state_in), 4))
+        mpc_error = np.zeros_like(state_in)
+        x_pred_traj = np.zeros_like(state_in)
+        mpc_t = np.zeros_like(self.t_ref)
         rospy.loginfo("Filling in MPC dataset and saving...")
-        for i in tqdm(range(0, len(self.x_act), 2)):
-            x0 = self.x_act[i]
-            xf = self.x_act[i+1]
+        for i in tqdm(range(len(state_in))): 
+            ii = i * 2
+            x0 = self.x_act[ii]
+            xf = self.x_act[ii+1]
+
             u = self.motor_thrusts[i]
-            dt = self.t_act[i+1] - self.t_act[i]
+            _u = np.append(u, [0]) # Considering there is no mass change
+
+            dt = self.t_act[ii+1] - self.t_act[ii]
+
             # Dynamic Model Pred
-            x_pred = self.quad_opt.forward_prop(x0, u, t_horizon=dt)
+            x_pred = self.quad_opt.forward_prop(x0, _u, t_horizon=dt)
             x_pred = x_pred[-1, np.newaxis, :]
-            x_pred_traj[i] = x0
-            x_pred_traj[i+1] = x_pred
+            x_pred_traj[i] = x_pred
 
             # MPC Model error
             x_err = xf - x_pred
-            mpc_error[i] = x_err
-            mpc_error[i+1] = x_err
+            mpc_error[i] = x_err / dt
+
+            # Save to array for plots
+            state_in[i] = self.x_act[ii] if self.use_groundtruth else self.x_est[ii]
+            state_out[i] = self.x_act[ii+1] if self.use_groundtruth else self.x_est[ii+1]
+            u_in[i] = u
+            mpc_t[i] = self.t_act[ii]
 
         # Organize arrays to dictionary
         mpc_dict = {
-            "t": self.t_act,
+            "t": mpc_t,
+            "state_in": state_in,
+            "state_out": state_out,
             "x" : self.x_act if self.use_groundtruth else self.x_est,
             "x_act": self.x_act,
             "error": mpc_error,
             "x_pred": x_pred_traj,
-            "input_in": self.motor_thrusts,
+            "input_in": u_in,
             "w_control": self.w_control,
             "error_pred": self.mpc_gpy_pred,
         }
@@ -164,23 +184,34 @@ class VisualizerWrapper:
             pickle.dump(mpc_dict, f)
         with open(os.path.join(self.mpc_dir, 'meta_data.json'), "w") as f:
             json.dump(self.mpc_meta, f, indent=4)
-        trajectory_tracking_results(self.mpc_dir, self.t_act, self.x_ref, self.x_act if self.use_groundtruth else self.x_est,
-                                    self.u_ref, self.motor_thrusts,  w_control=self.w_control, file_type='png')
+        trajectory_tracking_results(self.mpc_dir, self.t_ref, self.x_ref, state_in,
+                                    self.u_ref, u_in, mpc_error, w_control=self.w_control, file_type='png')
 
         # Check MHE is running and if it is continue to save MHE results
         if self.x_est is not None:
+            # Remove Exceeding data entry if needed
+            min_len = np.min((min_len, len(self.x_est), len(self.y), len(self.accel_est)))
+            self.x_est = self.x_est[:min_len]
+            self.y = self.y[:min_len]
+            self.accel_est = self.accel_est[:min_len]
+            self.t_act = self.t_act[:min_len]
+            self.x_act = self.x_act[:min_len]
+
             mhe_error = np.zeros_like(self.x_est)
-            a_est_b_traj = np.zeros((3, len(self.x_est)))
+            a_est_b_traj = np.zeros((len(self.x_est), 3))
             rospy.loginfo("Filling in MHE dataset and saving...")
+            g = cs.vertcat(0, 0, -9.81)
             for i in tqdm(range(len(self.x_est))):
                 u = self.motor_thrusts[i]
-                a_meas = self.y[i][6:9]
-                a_meas = np.stack(a_meas + v_dot_q(g, q_inv).T)
-                # Model Accel Est
-                a_thrust = cs.vertcat(0, 0, u[0] + u[1] + u[2] + u[3] * self.quad.max_thrust / self.quad.mass)
                 q = self.x_est[i][3:7]
                 q_inv = quaternion_inverse(q)
-                g = cs.vertcat(0, 0, -9.81)
+
+                a_meas = self.y[i][6:9]
+                a_meas = np.stack(a_meas + v_dot_q(g, q_inv).T)
+
+                # Model Accel Est
+                a_thrust = cs.vertcat(0, 0, u[0] + u[1] + u[2] + u[3] * self.quad.max_thrust / self.quad.mass)
+                
                 a_est_b = v_dot_q(v_dot_q(a_thrust, q) + g, q_inv)
                 a_est_b = np.squeeze(a_est_b.T)
                 a_est_b_traj[i] = a_est_b
@@ -234,7 +265,7 @@ class VisualizerWrapper:
         self.p_meas = None
         self.w_meas = None
         self.a_meas = None
-
+        rospy.loginfo("Recording Complete.")
     def pose_callback(self, msg):
         if not self.record:
             return
@@ -282,7 +313,7 @@ class VisualizerWrapper:
             msg.pose.pose.orientation.z]
         v_b = [msg.twist.twist.linear.x, msg.twist.twist.linear.y, msg.twist.twist.linear.z]
         w = [msg.twist.twist.angular.x, msg.twist.twist.angular.y, msg.twist.twist.angular.z]
-
+        self.p_meas = p
         v_w = v_dot_q(np.array(v_b), np.array(q)).tolist()
 
         x = p + q + v_w + w
@@ -337,7 +368,7 @@ class VisualizerWrapper:
         # collective_thrust = msg.thrust
         
         self.w_control = np.append(self.w_control, np.array(w_control)[np.newaxis, :], axis=0)
-        self.w_control = np.append(self.w_control, np.array(w_control)[np.newaxis, :], axis=0)
+        # self.w_control = np.append(self.w_control, np.array(w_control)[np.newaxis, :], axis=0)
         # self.collective_thrusts = np.append(self.collective_thrusts, collective_thrust)
 
     def control_gz_callback(self, msg):
@@ -348,14 +379,16 @@ class VisualizerWrapper:
         # collective_thrust = msg.thrusts
 
         self.w_control = np.append(self.w_control, np.array(w_control)[np.newaxis, :], axis=0)
-        self.w_control = np.append(self.w_control, np.array(w_control)[np.newaxis, :], axis=0)
+        # self.w_control = np.append(self.w_control, np.array(w_control)[np.newaxis, :], axis=0)
         # self.collective_thrusts = np.append(self.collective_thrusts, collective_thrust)
 
-    def record_callback(self, msg):
-        if not self.record:
-            return
-        
+    def record_callback(self, msg):  
+        if not self.record and msg.data == True:
+            # Recording has begun
+            rospy.loginfo("Recording...")     
+
         if self.record and msg.data == False:
+            # Recording ended
             self.record = msg.data
             # Run thread for saving the recorded data
             _save_record_thread = threading.Thread(target=self.save_recording_data(), args=(), daemon=True)
@@ -364,8 +397,8 @@ class VisualizerWrapper:
         self.record = msg.data
 
 def main():
-    rospy.init_node("visualizer_node")
-    VisualizerWrapper()
+    rospy.init_node("visualizer")
+    visualizer = VisualizerWrapper()
 
     rospy.spin()
 

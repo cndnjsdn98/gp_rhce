@@ -132,7 +132,7 @@ void GP_MPC::getControls(std::vector<double>& x_opt, std::vector<double>& u_opt)
     ocp_nlp_out_get(nlp_config_, nlp_dims_, nlp_out_, 1, "x", &x_opt[0]);
     ocp_nlp_out_get(nlp_config_, nlp_dims_, nlp_out_, 0, "u", &u_opt[0]);
     if (verbose_) {
-        std::cout << "\n--- u Opt ---" << std::endl;
+        std::cout << "\n--- u opt ---" << std::endl;
         for (const double& value : u_opt) { 
             std::cout << value << " ";
         }
