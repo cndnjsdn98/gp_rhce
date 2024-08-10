@@ -65,7 +65,7 @@
             <param name="n_mhe" value="$(arg n_mhe)"/>
             <param name="mhe_type" value="$(arg mhe_type)"/>
             <!-- Node runs Acados Compiler code and GP_MHE node sequentially -->
-            <node name="gp_mhe" pkg="gp_rhce" type="sequential_mhe.py" output="screen"/>
+            <node name="gp_mhe_wrapper" pkg="gp_rhce" type="sequential_mhe.py" output="screen"/>
         </group>
         <!-- MPC -->
         <group ns="gp_mpc">
@@ -78,7 +78,7 @@
             <param name="use_groundtruth" value="$(arg use_groundtruth)"/>
             <param name="with_gp" value="$(arg with_gp)"/>
             <!-- Node runs Acados Compiler code and GP_MPC node sequentially -->
-            <node name="gp_mpc" pkg="gp_rhce" type="sequential_mpc.py" output="screen"/>
+            <node name="gp_mpc_wrapper" pkg="gp_rhce" type="sequential_mpc.py" output="screen"/>
         </group>
     </group>
     

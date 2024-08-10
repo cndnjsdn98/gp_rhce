@@ -129,17 +129,19 @@ class VisualizerWrapper:
 
     def save_recording_data(self):
         # Remove Exceeding data entry if needed
-        min_len = np.min((len(self.x_act), len(self.motor_thrusts)))
+        min_len = np.min((len(self.x_act), len(self.motor_thrusts), len(self.w_control)))
         self.x_act = self.x_act[:min_len]
         self.t_act = self.t_act[:min_len]
         self.motor_thrusts = self.motor_thrusts[:min_len]
+        self.w_control = self.w_control[:min_len]
+
         # Save MPC results
         state_in = np.zeros((int(len(self.x_act)/2), self.x_act.shape[1]))
         state_out = np.zeros((len(state_in), self.x_act.shape[1]))
         u_in = np.zeros((len(state_in), 4))
         mpc_error = np.zeros_like(state_in)
         x_pred_traj = np.zeros_like(state_in)
-        mpc_t = np.zeros_like(self.t_ref)
+        mpc_t = np.zeros((len(state_in), 1))
         rospy.loginfo("Filling in MPC dataset and saving...")
         for i in tqdm(range(len(state_in))): 
             ii = i * 2
@@ -169,10 +171,12 @@ class VisualizerWrapper:
         # Organize arrays to dictionary
         mpc_dict = {
             "t": mpc_t,
+            "t_ref": self.t_ref,
             "state_in": state_in,
             "state_out": state_out,
             "x" : self.x_act if self.use_groundtruth else self.x_est,
             "x_act": self.x_act,
+            "x_ref": self.x_ref,
             "error": mpc_error,
             "x_pred": x_pred_traj,
             "input_in": u_in,
