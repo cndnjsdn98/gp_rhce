@@ -15,6 +15,9 @@
     <!-- Parameter Indicating GPy  -->
     <arg name="with_gp" default="False"/>
 
+    <!-- Parameter to indicate to compile acados model -->
+    <arg name="compile" default="True"/>
+    <param name="compile" value="$(arg compile)"/> 
 
     <group if="$(eval arg('env') == 'gazebo')" ns="gp_mpc">
         <rosparam file="$(find gp_rhce)/config/simulation_run.yaml"/>

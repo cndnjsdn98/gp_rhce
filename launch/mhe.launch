@@ -11,6 +11,10 @@
     <!-- Quad Name -->
     <arg name="quad_name" default="clark"/>
 
+    <!-- Parameter to indicate to compile acados model -->
+    <arg name="compile" default="True"/>
+    <param name="compile" value="$(arg compile)"/> 
+
     <group if="$(eval arg('env') == 'gazebo')" ns="gp_mhe">
         <rosparam file="$(find gp_rhce)/config/simulation_run.yaml"/>
         <rosparam file="$(find gp_rhce)/quads/$(arg quad_name)/$(arg quad_name)_mhe.yaml"/>

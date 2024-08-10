@@ -20,6 +20,9 @@
     <!-- Parameter Indicating GPy  -->
     <arg name="with_gp" default="False"/>
 
+    <!-- Parameter to indicate to compile acados model -->
+    <arg name="compile" default="True"/>
+    <param name="compile" value="$(arg compile)"/> 
 
     <!-- Gazebo Env -->
     <group if="$(eval arg('env') == 'gazebo')">
