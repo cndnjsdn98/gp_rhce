@@ -1,10 +1,18 @@
 cmake_minimum_required(VERSION 3.0.2)
 project(gp_rhce)
 
-## Compile as C++11, supported in ROS Kinetic and newer
+# Set build type to Release for optimization
+set(CMAKE_BUILD_TYPE Release)
+
+# Compile as C++11, supported in ROS Kinetic and newer
 add_compile_options(-std=c++11)
 
-## Find catkin macros and libraries
+# Additional optimization flags
+if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    add_compile_options(-O3)  # Enable high-level optimization
+endif()
+
+# Find catkin macros and libraries
 set(${PROJECT_NAME}_CATKIN_DEPS
     roscpp
     roslib
@@ -21,17 +29,13 @@ find_package(catkin REQUIRED COMPONENTS
     ${${PROJECT_NAME}_CATKIN_DEPS}
 )
 
-################################################
-## Declare ROS messages, services and actions ##
-################################################
-
-## Generate messages in the 'msg' folder
+# Declare ROS messages, services, and actions
 add_message_files(
   FILES
   ReferenceTrajectory.msg
 )
 
-## Generate added messages and services with any dependencies listed here
+# Generate added messages and services with any dependencies listed here
 generate_messages(
   DEPENDENCIES 
   std_msgs
@@ -50,11 +54,7 @@ else()
   message(FATAL_ERROR "Environment variable ACADOS_SOURCE_DIR is not set.")
 endif()
 
-
-
-###########
-## Build ##
-###########
+# Build
 include_directories(
   include
   ${catkin_INCLUDE_DIRS}
@@ -66,13 +66,6 @@ include_directories(
 
 # Specify the directory containing precompiled Acados Models
 set(ACADOS_OCP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/acados_ocp")
-# Add the precompiled library directory to the link search path
-# link_directories(${ACADOS_LIB_DIR})
-
-## Declare a C++ library
-# add_library(${PROJECT_NAME}
-#   src/${PROJECT_NAME}/src/nodes/gp_mhe_node.cpp
-# )
 
 add_executable(gp_mhe_node 
                src/mhe/gp_mhe_node.cpp 
@@ -93,7 +86,6 @@ set(ACADOS_LIBS
   ${ACADOS_SOURCE_DIR}/lib/libacados.so
   ${ACADOS_SOURCE_DIR}/lib/libblasfeo.so
   ${ACADOS_SOURCE_DIR}/lib/libhpipm.so
-  # Add other necessary libraries here
 )
 
 target_link_libraries(gp_mhe_node
