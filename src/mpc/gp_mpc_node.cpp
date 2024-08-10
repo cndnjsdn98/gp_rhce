@@ -163,7 +163,7 @@ void Node::referenceCallback(const gp_rhce::ReferenceTrajectory::ConstPtr& msg) 
 }
 
 void Node::stateEstCallback(const nav_msgs::Odometry::ConstPtr& msg) {
-    double time = ros::Time::now().toSec();
+    double time = ros::Time::now().toNSec();
     std::cout << time << " " << msg->header.seq << std::endl;
     std::vector<double> p = {msg->pose.pose.position.x,
                              msg->pose.pose.position.y,
