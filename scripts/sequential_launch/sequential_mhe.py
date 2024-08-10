@@ -21,7 +21,7 @@ def main():
             rospy.logerr("MHE Model Compilation failed with return code %d", model_gen_node.returncode)
             return  
 
-        time.sleep(3)
+    time.sleep(3)
 
     # Launch the C++ MHE node
     mhe_node = subprocess.Popen(['rosrun', 'gp_rhce', 'gp_mhe_node'])
