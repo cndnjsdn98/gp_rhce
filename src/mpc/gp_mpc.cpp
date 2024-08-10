@@ -35,8 +35,8 @@ GP_MPC::GP_MPC() {
     // Initialize MPC parameters
     x_init_.reserve(MPC_NX);
     u0_.reserve(MPC_NU);
-    x_ref_.reserve(MPC_NY);
-    xt_ref_.reserve(MPC_NX);
+    // x_ref_.reserve(MPC_NY);
+    // xt_ref_.reserve(MPC_NX);
 }   
 
 // Deconstructor
@@ -85,7 +85,9 @@ void GP_MPC::setReference(const std::vector<std::vector<double>>& x_ref, const s
         std::cout << "\n--- Set Reference ---\n";
     }
     for (int i = 0; i < ref_len-1; ++i) {
-        x_ref_.clear();
+        // x_ref_.clear();
+        std::vector<double> x_ref_;
+        x_ref_.reserve(MPC_NX + MPC_NU);
         x_ref_.insert(x_ref_.end(), x_ref[i].begin(), x_ref[i].end());
         x_ref_.insert(x_ref_.end(), u_ref[i].begin(), u_ref[i].end());
         ocp_nlp_cost_model_set(nlp_config_, nlp_dims_, nlp_in_, i, "yref", static_cast<void*>(x_ref_.data()));
@@ -96,7 +98,9 @@ void GP_MPC::setReference(const std::vector<std::vector<double>>& x_ref, const s
             std::cout << i << std::endl;
         }
     }
-    x_ref_.clear();
+    // x_ref_.clear();
+    std::vector<double> x_ref_;
+    x_ref_.reserve(MPC_NX + MPC_NU);
     x_ref_.insert(x_ref_.end(), x_ref.back().begin(), x_ref.back().end());
     x_ref_.insert(x_ref_.end(), u_ref.back().begin(), u_ref.back().end());
     for (int i = ref_len-1; i < MPC_N; ++i) {
@@ -108,7 +112,9 @@ void GP_MPC::setReference(const std::vector<std::vector<double>>& x_ref, const s
             std::cout<< i << std::endl;
         }
     }
-    xt_ref_.clear();
+    std::vector<double> xt_ref_;
+    xt_ref_.reserve(MPC_NX);
+    // xt_ref_.clear();
     xt_ref_.insert(xt_ref_.end(), x_ref.back().begin(), x_ref.back().end());
     if (verbose_) {
         for (const double& value : xt_ref_) {

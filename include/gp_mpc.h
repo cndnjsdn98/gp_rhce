@@ -87,7 +87,7 @@ private:
     double ubx0_[NBX0];
     
     // MPC Parameters
-    std::vector<double> x_init_, u0_, x_ref_, xt_ref_, params_;
+    std::vector<double> x_init_, u0_, params_; //xt_ref_, x_ref_
     double optimization_dt_;
 
 public:
