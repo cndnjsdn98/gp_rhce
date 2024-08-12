@@ -254,7 +254,7 @@ class QuadOptimizerMHE(QuadOptimizer):
             ocp_mhe.constraints.idxbx_0 = np.array([self.state_dim])
 
         # Solver options
-        ocp_mhe.solver_options.qp_solver = 'FULL_CONDENSING_HPIPM'
+        ocp_mhe.solver_options.qp_solver = 'PARTIAL_CONDENSING_HPIPM'
         ocp_mhe.solver_options.hessian_approx = 'GAUSS_NEWTON'
         ocp_mhe.solver_options.integrator_type = 'ERK'
         ocp_mhe.solver_options.print_level = 0

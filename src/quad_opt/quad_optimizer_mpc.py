@@ -161,7 +161,7 @@ class QuadOptimizerMPC(QuadOptimizer):
         ocp_mpc.constraints.idxbu = np.array([0, 1, 2, 3])
 
         # Solver options
-        ocp_mpc.solver_options.qp_solver = 'FULL_CONDENSING_HPIPM'
+        ocp_mpc.solver_options.qp_solver = 'FULL_CONDENSING_DAQP'
         ocp_mpc.solver_options.hessian_approx = 'GAUSS_NEWTON'
         ocp_mpc.solver_options.integrator_type = 'ERK'
 
