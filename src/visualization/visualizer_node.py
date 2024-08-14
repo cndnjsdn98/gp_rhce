@@ -129,14 +129,22 @@ class VisualizerWrapper:
 
     def save_recording_data(self):
         # Remove Exceeding data entry if needed
-        min_len = np.min((len(self.x_act), len(self.motor_thrusts), len(self.w_control)))
+        # Data Sampled at 100Hz
+        min_len = np.min((len(self.x_act), len(self.motor_thrusts)))
         self.x_act = self.x_act[:min_len]
-        self.t_act = self.t_act[:min_len]
+        self.t_act = self.t_act[:min_len] - self.t_act[0]
         self.motor_thrusts = self.motor_thrusts[:min_len]
-        self.w_control = self.w_control[:min_len]
 
+        # Data Sampled at 50Hz
+        min_50_len = np.min((len(self.t_ref), len(self.w_control)))
+        self.x_ref = self.x_ref[:min_50_len]
+        self.t_ref = self.t_ref[:min_50_len]
+        self.w_control = self.w_control[:min_50_len]
+
+        print(self.t_ref.shape, self.x_act.shape)
         # Save MPC results
-        state_in = np.zeros((int(len(self.x_act)/2), self.x_act.shape[1]))
+        traj_len = np.min((len(self.t_ref), int(len(self.x_act)/2)))
+        state_in = np.zeros((traj_len, self.x_act.shape[1]))
         state_out = np.zeros((len(state_in), self.x_act.shape[1]))
         u_in = np.zeros((len(state_in), 4))
         mpc_error = np.zeros_like(state_in)
