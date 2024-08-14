@@ -18,7 +18,7 @@ GP_MHE::GP_MHE(std::string& mhe_type) {
     acados_ocp_capsule_ = mhe_acados_create_capsule();
     // Create MHE Acados model
     status_ = mhe_acados_create(acados_ocp_capsule_);
-    // If i want to create with new estimation window use this:
+    // If i want to create with new estimation window use the following:
     // status_ = mhe_acados_create_with_discretization(acados_ocp_capsule_, N_, new_time_steps_);
     
     if (status_) {
@@ -87,10 +87,6 @@ int GP_MHE::solveMHE(const std::vector<std::vector<double>>& y_history, const st
 
 void GP_MHE::getStateEst(std::vector<double>& x_est) {
     ocp_nlp_out_get(nlp_config_, nlp_dims_, nlp_out_, MHE_N, "x", &x_est[0]);
-    // for (const double& value : x_est) {
-    //     std::cout << value << " ";
-    // }
-    // std::cout << std::endl;
 }
 
 double GP_MHE::getOptimizationTime() {

@@ -170,11 +170,6 @@ void Node::recordMheCallback(const std_msgs::Bool::ConstPtr& msg) {
 }
 
 void Node::motorThrustCallback(const mav_msgs::Actuators::ConstPtr& msg) {
-    // std::vector<double> thrusts;
-    // for (auto &data : msg->angular_velocities) {
-    //     thrusts.push_back(data);
-    // }
-    // Need to add it twice every time because MPC runs 50Hz while this runs at 100Hz
     u_ = msg-> angular_velocities;
 }
 

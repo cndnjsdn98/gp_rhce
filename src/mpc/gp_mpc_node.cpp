@@ -33,8 +33,7 @@ Node::Node(ros::NodeHandle& nh) {
     w_.resize(N_RATE_STATES);
     x_opt_.resize(MPC_NX);
     u_opt_.resize(MPC_NU);
-    // x_opt_ = {0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-    // u_opt_ = {0, 0, 0, 0};
+
     // Set landing target and landing speed
     if (environment_ == "gazebo") {
         land_z_ = 0.1;
@@ -199,11 +198,6 @@ void Node::stateEstCallback(const nav_msgs::Odometry::ConstPtr& msg) {
     }
 
     // concatenate p, q, v, w into x_
-    // std::vector<double>::iterator it = x_.begin();
-    // it = std::copy(p.begin(), p.end(), it);
-    // it = std::copy(q.begin(), q.end(), it);
-    // it = std::copy(v.begin(), v.end(), it);
-    // std::copy(w.begin(), w.end(), it);
     std::copy(p_.begin(), p_.end(), x_.begin());
     std::copy(q_.begin(), q_.end(), x_.begin() + IDX_QUATERNION_START);
     std::copy(v_.begin(), v_.end(), x_.begin() + IDX_VELOCITY_START);
@@ -231,7 +225,6 @@ void Node::stateEstCallback(const nav_msgs::Odometry::ConstPtr& msg) {
                 // mpc_thread_.detach(); // Use detach if you don't need to join later
                 last_state_est_seq_num_ = msg->header.seq;
                 optimize_next_ = false;
-
                 return;
             }
         }
@@ -350,9 +343,6 @@ void Node::setReferenceTrajectory() {
             }
             // Compute MSE
             optimization_dt_ /= mpc_idx_;
-            // ROS_INFO("Tracking complte. Total Control RMSE %.3f m\n"
-            //          "Max vel: %.2f m/s Mean MPC opt. time: %.3f ms", 
-            //          rmse, max_vel, optimization_dt_);
             ROS_INFO("Tracking complete. Mean MPC opt. time: %.3f ms", optimization_dt_*1000);
             x_ref_.clear();
             u_ref_.clear();
