@@ -200,7 +200,7 @@ class VisualizerWrapper:
                                     self.u_ref, u_in, mpc_error, w_control=self.w_control, file_type='png')
 
         # Check MHE is running and if it is continue to save MHE results
-        if self.x_est is not None:
+        if len(self.x_est) > 0:
             # Remove Exceeding data entry if needed
             min_len = np.min((min_len, len(self.x_est), len(self.y), len(self.accel_est)))
             self.x_est = self.x_est[:min_len]

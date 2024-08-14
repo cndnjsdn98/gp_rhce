@@ -295,7 +295,7 @@ def state_estimation_results(img_save_dir, t_ref, x_act, x_est, y_measured,
         ax[i].legend()
         ax[i].grid()
     ax[0].set_title(r'quaternion')
-    ax[2].set_xlabel(r'$t [s]$')
+    ax[3].set_xlabel(r'$t [s]$')
     plt.tight_layout()
     fig.savefig(img_save_dir + '/quaternion_state_estimation.'+file_type, dpi=None, facecolor='w', edgecolor='w',
                 orientation='portrait', format=file_type,
