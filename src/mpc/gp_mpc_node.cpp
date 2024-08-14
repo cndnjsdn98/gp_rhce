@@ -101,23 +101,23 @@ void Node::initLaunchParameters(ros::NodeHandle& nh) {
 
 void Node::initSubscribers(ros::NodeHandle& nh) {
     ref_sub_ = nh.subscribe<gp_rhce::ReferenceTrajectory> (
-        ref_topic_, 1, &Node::referenceCallback, this);
+        ref_topic_, 10, &Node::referenceCallback, this);
     if (use_groundtruth_) {
         state_est_sub_ = nh.subscribe<nav_msgs::Odometry> (
-            odom_topic_, 1, &Node::stateEstCallback, this);
+            odom_topic_, 10, &Node::stateEstCallback, this);
     } else {
         state_est_sub_ = nh.subscribe<nav_msgs::Odometry> (
-            state_est_topic_, 1, &Node::stateEstCallback, this);
+            state_est_topic_, 10, &Node::stateEstCallback, this);
     }
 }
 
 void Node::initPublishers(ros::NodeHandle& nh) {
-    control_pub_ = nh.advertise<mavros_msgs::AttitudeTarget> (control_topic_, 1, true);
-    motor_thrust_pub_ = nh.advertise<mav_msgs::Actuators> (motor_thrust_topic_, 1, true);
-    record_pub_ = nh.advertise<std_msgs::Bool> (record_topic_, 1, true); 
-    status_pub_ = nh.advertise<std_msgs::Bool> (status_topic_, 1, true);
+    control_pub_ = nh.advertise<mavros_msgs::AttitudeTarget> (control_topic_, 10, true);
+    motor_thrust_pub_ = nh.advertise<mav_msgs::Actuators> (motor_thrust_topic_, 10, true);
+    record_pub_ = nh.advertise<std_msgs::Bool> (record_topic_, 10, true); 
+    status_pub_ = nh.advertise<std_msgs::Bool> (status_topic_, 10, true);
     // Gazebo Specific Publisher
-    control_gz_pub_ = nh.advertise<quadrotor_msgs::ControlCommand> (control_gz_topic_, 1, true);
+    control_gz_pub_ = nh.advertise<quadrotor_msgs::ControlCommand> (control_gz_topic_, 10, true);
 }
 
 void Node::initRosService(ros::NodeHandle& nh) {
