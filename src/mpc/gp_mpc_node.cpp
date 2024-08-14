@@ -25,11 +25,16 @@ Node::Node(ros::NodeHandle& nh) {
     } 
     assert(quad_name_ != "");
     ROS_INFO("MPC: %s Loaded in %s", quad_name_.c_str(), environment_.c_str());
-    // init u
-    x_opt_.reserve(MPC_NX);
-    u_opt_.reserve(MPC_NU);
-    x_opt_ = {0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-    u_opt_ = {0, 0, 0, 0};
+    // initialize variables
+    x_.resize(MPC_NX);
+    p_.resize(N_POSITION_STATES);
+    q_.resize(N_QUATERNION_STATES);
+    v_.resize(N_VELOCITY_STATES);
+    w_.resize(N_RATE_STATES);
+    x_opt_.resize(MPC_NX);
+    u_opt_.resize(MPC_NU);
+    // x_opt_ = {0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    // u_opt_ = {0, 0, 0, 0};
     // Set landing target and landing speed
     if (environment_ == "gazebo") {
         land_z_ = 0.1;
@@ -165,19 +170,19 @@ void Node::referenceCallback(const gp_rhce::ReferenceTrajectory::ConstPtr& msg) 
 void Node::stateEstCallback(const nav_msgs::Odometry::ConstPtr& msg) {
     // double time = ros::Time::now().toNSec() * 1e6;
     // std::cout << time << " " << msg->header.seq << std::endl;
-    std::vector<double> p = {msg->pose.pose.position.x,
-                             msg->pose.pose.position.y,
-                             msg->pose.pose.position.z}; 
-    std::vector<double> q = {msg->pose.pose.orientation.w, 
-                             msg->pose.pose.orientation.x,
-                             msg->pose.pose.orientation.y, 
-                             msg->pose.pose.orientation.z};
-    std::vector<double> v = {msg->twist.twist.linear.x, 
-                             msg->twist.twist.linear.y, 
-                             msg->twist.twist.linear.z};
-    std::vector<double> w = {msg->twist.twist.angular.x,
-                             msg->twist.twist.angular.y,
-                             msg->twist.twist.angular.z};
+    p_ = {msg->pose.pose.position.x,
+          msg->pose.pose.position.y,
+          msg->pose.pose.position.z}; 
+    q_ = {msg->pose.pose.orientation.w, 
+          msg->pose.pose.orientation.x,
+          msg->pose.pose.orientation.y, 
+          msg->pose.pose.orientation.z};
+    v_ = {msg->twist.twist.linear.x, 
+          msg->twist.twist.linear.y, 
+          msg->twist.twist.linear.z};
+    w_ = {msg->twist.twist.angular.x,
+          msg->twist.twist.angular.y,
+          msg->twist.twist.angular.z};
 
     if (environment_ == "gazebo") {
         // If its Gazebo transform v_B to v_W
@@ -190,14 +195,20 @@ void Node::stateEstCallback(const nav_msgs::Odometry::ConstPtr& msg) {
         // Apply rotation to get velocity in world frame
         v_eig = q_eig * v_eig;
         // Save to std::vector
-        v = {v_eig.x(), v_eig.y(), v_eig.z()};
+        v_ = {v_eig.x(), v_eig.y(), v_eig.z()};
     }
-    x_.clear();
+
     // concatenate p, q, v, w into x_
-    x_.insert(x_.end(), p.begin(), p.end());
-    x_.insert(x_.end(), q.begin(), q.end());
-    x_.insert(x_.end(), v.begin(), v.end());
-    x_.insert(x_.end(), w.begin(), w.end());
+    // std::vector<double>::iterator it = x_.begin();
+    // it = std::copy(p.begin(), p.end(), it);
+    // it = std::copy(q.begin(), q.end(), it);
+    // it = std::copy(v.begin(), v.end(), it);
+    // std::copy(w.begin(), w.end(), it);
+    std::copy(p_.begin(), p_.end(), x_.begin());
+    std::copy(q_.begin(), q_.end(), x_.begin() + IDX_QUATERNION_START);
+    std::copy(v_.begin(), v_.end(), x_.begin() + IDX_VELOCITY_START);
+    std::copy(w_.begin(), w_.end(), x_.begin() + IDX_RATE_START);
+
 
     x_available_ = true;
 

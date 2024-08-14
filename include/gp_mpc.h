@@ -63,8 +63,6 @@
 
 class GP_MPC {
 private:
-    // Verbose
-    bool verbose_ = false; 
     // acados_ocp_capsule
     mpc_solver_capsule *acados_ocp_capsule_;
 
@@ -87,7 +85,7 @@ private:
     double ubx0_[NBX0];
     
     // MPC Parameters
-    std::vector<double> x_init_, u0_, params_; //xt_ref_, x_ref_
+    std::vector<double> x_init_, u0_, params_, xt_ref_, x_ref_;
     double optimization_dt_;
 
 public:
@@ -98,7 +96,6 @@ public:
     ~GP_MPC();
 
     int solveMPC(const std::vector<double>& x_init, const std::vector<double>& u0);
-    void setInitialStates(const std::vector<double>& x_init, const std::vector<double>& u0);
     void setReference(const std::vector<std::vector<double>>& x_ref, const std::vector<std::vector<double>>& u_ref);
     void setParams(const std::vector<std::vector<double>>& params);
     void getControls(std::vector<double>& x_opt, std::vector<double>& u_opt);

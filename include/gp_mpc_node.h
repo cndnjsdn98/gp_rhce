@@ -26,7 +26,7 @@ private:
     GP_MPC* gp_mpc_;
 
     // System States
-    std::vector<double> x_, u_;
+    std::vector<double> x_, u_, p_, q_, v_, w_;
     bool x_available_;
     std::thread status_thread_;
 

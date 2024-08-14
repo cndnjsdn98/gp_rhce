@@ -107,34 +107,6 @@ class QuadOptimizerMHE(QuadOptimizer):
         self.T_mhe = t_mhe  # Time horizon for MHE
         self.N_mhe = n_mhe  # number of nodes within estimation horizon
 
-
-        # if mhe_type == "kinematic":
-        #     # Full state vector (16-dimensional)
-        #     self.x = cs.vertcat(self.x, self.a)
-        #     self.x_dot = cs.vertcat(self.x_dot, self.a_dot)
-        #     self.state_dim = 16
-        #     # Full state noise vector (16-dimensional)
-        #     self.w = cs.vertcat(self.w, self.w_a)
-        #     # Update Full input state vector
-        #     self.u = cs.vertcat()
-        #     # Full measurement state vector
-        #     self.y = cs.vertcat(self.p, self.r, self.a)
-        # elif mhe_type == "dynamic":
-        #     # Full state vector (13-dimensional)
-        #     self.x = cs.vertcat(self.x, self.d, self.param)
-        #     self.x_dot = cs.vertcat(self.x_dot, self.d_dot, self.param_dot)
-        #     if self.mhe_with_gpyTorch:
-        #         self.state_dim = 16
-        #     else:
-        #         self.state_dim = 13
-        #     # Full state noise vector (13-dimensional)
-        #     self.w = cs.vertcat(self.w, self.w_d)
-
-        #     f_thrust = self.u * self.quad.max_thrust / (self.quad.mass + self.k_m)
-        #     self.a = cs.vertcat(0.0, 0.0, (f_thrust[0] + f_thrust[1] + f_thrust[2] + f_thrust[3])) #a_thrust
-        #     # Full measurement state vector
-        #     self.y = cs.vertcat(self.p, self.r, self.d)
-
         if self.mhe_with_gpyTorch:
             self.mhe_gpy_ensemble = mhe_gpy_ensemble
             self.mhe_gpy_ensemble.switch_modelDict_to_Batch()
@@ -164,7 +136,6 @@ class QuadOptimizerMHE(QuadOptimizer):
 
         # ### Setup and compile Acados OCP solvers ### #
         if compile_acados:
-            self.acados_mhe_solver = {}
             for key_model in acados_models_mhe.values():
                 ocp_mhe, nyx, nx, nu = self.create_mhe_solver(key_model, q_mhe, q0_factor, r_mhe, solver_options)
                 self.nyx = nyx
@@ -259,10 +230,11 @@ class QuadOptimizerMHE(QuadOptimizer):
         ocp_mhe.solver_options.integrator_type = 'ERK'
         ocp_mhe.solver_options.print_level = 0
         ocp_mhe.solver_options.nlp_solver_type = 'SQP_RTI' if solver_options is None else solver_options["solver_type"]
+        ocp_mhe.solver_options.qp_solver_warm_start = 1 # Warm Start
 
         # Path to where code will be exported
         ocp_mhe.code_export_directory = os.path.join(self.acados_models_dir, "mhe")
-
+        
         return ocp_mhe, nyx, nx, nu
 
 def main():
@@ -293,6 +265,7 @@ def main():
     v_r = np.ones((1,3)) * rospy.get_param(ns + 'v_r', default=1e-6)
     v_a = np.ones((1,3)) * rospy.get_param(ns + 'v_a', default=1e-5)
     v_d = np.ones((1,3)) * rospy.get_param(ns + 'v_d', default=0.0001)
+
     # System Weights
     if mhe_type == "kinematic":
         q_mhe = 1/np.squeeze(np.hstack((w_p, w_q, w_v, w_r, w_a)))

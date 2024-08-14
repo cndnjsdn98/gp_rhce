@@ -49,12 +49,14 @@
 #define N_QUATERNION_STATES 4
 #define N_VELOCITY_STATES 3
 #define N_RATE_STATES 3
-#define N_STATES 13
+#define N_ACCEL_STATES 3
+#define N_MOTORS 4
+
+#define N_MEAS_STATES N_POSITION_STATES + N_RATE_STATES + N_ACCEL_STATES 
 
 #define IDX_POSITION_START 0
-#define IDX_QUATERNION_START N_POSITION_STATES
-#define IDX_VELOCITY_START N_POSITION_STATES + N_QUATERNION_STATES
-#define IDX_RATE_START N_POSITION_STATES + N_QUATERNION_STATES + N_VELOCITY_STATES
+#define IDX_RATE_START N_POSITION_STATES
+#define IDX_ACCEL_START N_POSITION_STATES + N_RATE_STATES
 
 class GP_MHE {
 private:
@@ -81,7 +83,7 @@ private:
     
     // MHE Parameters
     std::string mhe_type_;
-    std::vector<double> yref_0_, yref_, gpy_corr_, x0_bar_, x_est_;
+    std::vector<double> yref_0_, yref_, gpy_corr_, x0_bar_, u_;
     double optimization_dt_;
 
 public:

@@ -47,15 +47,15 @@ private:
 
     // Subscribers
     ros::Subscriber imu_sub_, record_sub_, motor_thrust_sub_,
-        pose_sub_, twist_sub_, odom_sub_;
+        pose_sub_;
     // Gazebo specific Subscribers
     ros::Subscriber odom_gz_sub_;
 
     // System States
-    std::vector<double> x_est_, position_, quaternion_, velocity_,
-                        angular_velocity_, acceleration_, y_;
+    std::vector<double> x_est_, p_, w_, a_, y_, u_;
     std::vector<std::vector<double>> u_hist_, y_hist_;
-    
+    bool hist_received_ = false;
+
     // Recording Parameters 
     double optimization_dt_ = 0;
     int mhe_idx_ = 0, mhe_seq_num_ = 0, last_u_count_=0;
@@ -71,7 +71,6 @@ private:
     void recordMheCallback(const std_msgs::Bool::ConstPtr& msg);
     void motorThrustCallback(const mav_msgs::Actuators::ConstPtr& msg);
     void poseCallback(const geometry_msgs::PoseStamped::ConstPtr& msg);
-    void twistCallback(const geometry_msgs::TwistStamped::ConstPtr& msg);
     // Gazebo specific callback methods
     void odomGzCallback(const nav_msgs::Odometry::ConstPtr& msg);
     

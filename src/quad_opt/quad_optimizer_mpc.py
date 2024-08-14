@@ -97,12 +97,11 @@ class QuadOptimizerMPC(QuadOptimizer):
 
         # ### Setup and compile Acados OCP solvers ### #
         if compile_acados:
-            for key, key_model in zip(acados_models.keys(), acados_models.values()):
+            for key_model in acados_models.values():
                 ocp_mpc = self.create_mpc_solver(key_model, q_mpc, qt_factor, r_mpc, solver_options)
 
-                # Compile acados OCP solver if necessary
                 json_file_mpc = os.path.join(self.acados_models_dir, "mpc", key_model.name + '.json')
-                self.acados_mpc_solver[key] = AcadosOcpSolver(ocp_mpc, json_file=json_file_mpc)
+                self.acados_mpc_solver = AcadosOcpSolver(ocp_mpc, json_file=json_file_mpc)
 
     def create_mpc_solver(self, model, q_cost, qt_factor, r_cost, solver_options):
         """
@@ -164,12 +163,13 @@ class QuadOptimizerMPC(QuadOptimizer):
         ocp_mpc.solver_options.qp_solver = 'FULL_CONDENSING_DAQP'
         ocp_mpc.solver_options.hessian_approx = 'GAUSS_NEWTON'
         ocp_mpc.solver_options.integrator_type = 'ERK'
-
         ocp_mpc.solver_options.print_level = 0
         ocp_mpc.solver_options.nlp_solver_type = 'SQP_RTI' if solver_options is None else solver_options["solver_type"]
+        ocp_mpc.solver_options.qp_solver_warm_start = 1 # Warm Start
 
         # Path to where code will be exported
         ocp_mpc.code_export_directory = os.path.join(self.acados_models_dir, "mpc")
+
         return ocp_mpc
    
 def main():
