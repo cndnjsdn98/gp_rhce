@@ -50,8 +50,8 @@ Node::Node(ros::NodeHandle& nh) {
         init_thr_ = 0.1;
         init_v_ = 0.5;
     } else if (environment_ == "arena") {
-        init_thr_ = 0.2;
-        init_v_ = 0.4;
+        init_thr_ = 0.5;
+        init_v_ = 0.5;
     }
     
     x_available_ = false;
