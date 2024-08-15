@@ -6,9 +6,6 @@ mhe_model_version: ""
 # Mass change values
 change_mass: 0
 
-# Topic Names
-odom_topic: "/mavros/odometry/out"
-
 # PID Position Controller Weights
 throttle_kp: 12.
 throttle_ki: 0.0

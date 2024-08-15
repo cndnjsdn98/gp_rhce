@@ -19,7 +19,7 @@
         <param name="odom_rate" value="$(arg odom_rate)"/>
         <param name="use_ekf" value="$(arg use_ekf)"/>
         <remap from="/mocap/$(arg quad_name)/pose" to="/mavros/vision_pose/pose"/>
-        <remap from="/$(arg quad_name)/ground_truth/odometry" to="/mavros/odometry/out"/>
+        <!-- <remap from="/$(arg quad_name)/ground_truth/odometry" to="/mavros/odometry/out"/> -->
     </node>
     
     <param name="results_dir" value="$(find gp_rhce)/results/"/>

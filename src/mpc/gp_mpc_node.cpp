@@ -40,7 +40,7 @@ Node::Node(ros::NodeHandle& nh) {
         land_dz_ = 0.1;
     } else if (environment_ == "arena") {
         land_z_ = 0.005;
-        land_dz_ = 0.3;
+        land_dz_ = 0.1;
     }
     // Landing threshold 
     land_z_thr_ = 0.07;
@@ -51,7 +51,7 @@ Node::Node(ros::NodeHandle& nh) {
         init_v_ = 0.5;
     } else if (environment_ == "arena") {
         init_thr_ = 0.5;
-        init_v_ = 0.5;
+        init_v_ = 0.3;
     }
     
     x_available_ = false;
