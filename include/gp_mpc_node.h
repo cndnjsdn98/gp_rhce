@@ -54,7 +54,7 @@ private:
     bool with_gp_;
 
     // Subscriber Topics 
-    std::string ref_topic_, state_est_topic_, odom_topic_;
+    std::string ref_topic_, state_est_topic_, odom_topic_, land_topic_;
 
     // Publisher Topics
     std::string control_topic_, motor_thrust_topic_, record_topic_, status_topic_;
@@ -65,7 +65,7 @@ private:
     std::string mavros_set_mode_srvc_, mavros_arming_srvc_;
 
     // Subscribers
-    ros::Subscriber ref_sub_, state_est_sub_;
+    ros::Subscriber ref_sub_, state_est_sub_, land_sub_;
 
     // Publishers
     ros::Publisher control_pub_, motor_thrust_pub_, record_pub_, status_pub_;
@@ -84,6 +84,7 @@ private:
     // Callback methods
     void referenceCallback(const gp_rhce::ReferenceTrajectory::ConstPtr& msg);
     void stateEstCallback(const nav_msgs::Odometry::ConstPtr& msg);
+    void landCallback(const std_msgs::Bool::ConstPtr& msg);
     
 public:
     // Constructor

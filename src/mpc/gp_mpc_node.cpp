@@ -91,6 +91,7 @@ void Node::initLaunchParameters(ros::NodeHandle& nh) {
     nh.param<std::string>(ns + "/ref_topic", ref_topic_, ns + "/reference");
     nh.param<std::string>(ns + "/state_est_topic", state_est_topic_, "/" + quad_name_ + "/state_est");
     nh.param<std::string>(ns + "/odom_topic", odom_topic_, "/" + quad_name_ + "/ground_truth/odometry");
+    nh.param<std::string>(ns + "/land", land_topic_, "/" + quad_name_ + "/land");
 
     // Publisher topic names
     nh.param<std::string>(ns + "/control_topic", control_topic_, "/mavros/setpoint_raw/attitude");
@@ -115,6 +116,8 @@ void Node::initSubscribers(ros::NodeHandle& nh) {
         state_est_sub_ = nh.subscribe<nav_msgs::Odometry> (
             state_est_topic_, 10, &Node::stateEstCallback, this);
     }
+    land_sub_ = nh.subscribe<std_msgs::Bool> (
+        land_topic_, 10, &Node::landCallback, this);
 }
 
 void Node::initPublishers(ros::NodeHandle& nh) {
@@ -129,6 +132,17 @@ void Node::initPublishers(ros::NodeHandle& nh) {
 void Node::initRosService(ros::NodeHandle& nh) {
     set_mode_client_ = nh.serviceClient<mavros_msgs::SetMode> (mavros_set_mode_srvc_);
     arming_client_ = nh.serviceClient<mavros_msgs::CommandBool> (mavros_arming_srvc_);
+}
+
+void Node::landCallback(const std_msgs::Bool::ConstPtr& msg) {
+    if (msg->data) {
+        // Lower drone to a safe height
+        landing_ = true;
+        // Stop recording
+        std_msgs::Bool msg;
+        msg.data = false;
+        record_pub_.publish(msg);
+    }
 }
 
 void Node::referenceCallback(const gp_rhce::ReferenceTrajectory::ConstPtr& msg) {
@@ -335,8 +349,10 @@ void Node::setReferenceTrajectory() {
         
         // Reached landing height
         if (std::abs(x_[2] - land_z_) < land_z_thr_) {
-            ROS_INFO("Vehicle at Ground Level");
-            ground_level_ = true;
+            if (!ground_level_) {
+                ROS_INFO("Vehicle at Ground Level");
+                ground_level_ = true;
+            }
             if (environment_ == "arena") {
                 mavros_msgs::CommandBool disarm_cmd;
                 disarm_cmd.request.value = false;
