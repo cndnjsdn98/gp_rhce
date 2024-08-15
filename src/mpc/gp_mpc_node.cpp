@@ -46,8 +46,14 @@ Node::Node(ros::NodeHandle& nh) {
     land_z_thr_ = 0.07;
     u_ref_prov_ = {0, 0, 0, 0};
     // Initial Position reached threshold and velocity
-    init_thr_ = 0.1;
-    init_v_ = 0.3;
+    if (environment_ == "gazebo") {
+        init_thr_ = 0.1;
+        init_v_ = 0.5;
+    } else if (environment_ == "arena") {
+        init_thr_ = 0.2;
+        init_v_ = 0.4;
+    }
+    
     x_available_ = false;
     // Start thread to publish mpc status
     status_thread_ = std::thread(&Node::run, this);
