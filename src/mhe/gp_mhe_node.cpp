@@ -60,7 +60,7 @@ void Node::initLaunchParameters(ros::NodeHandle& nh) {
 
     // Subscriber topic names
     nh.param<std::string>(ns + "/imu_topic", imu_topic_, "/mavros/imu/data_raw");
-    nh.param<std::string>(ns + "/pose_topic", pose_topic_, "/mavros/vision_pose/pose");
+    nh.param<std::string>(ns + "/pose_topic", pose_topic_, "/mocap/" + quad_name_ +"/pose");
     nh.param<std::string>(ns + "/motor_thrust_topic", motor_thrust_topic_, "/" + quad_name_ + "/motor_thrust");
     nh.param<std::string>(ns + "/record_topic", record_topic_, "/" + quad_name_ + "/record");
     // Gazebo Specific Subscriber topic names
@@ -72,9 +72,11 @@ void Node::initLaunchParameters(ros::NodeHandle& nh) {
 }
 
 void Node::initSubscribers(ros::NodeHandle& nh) {
-    // Gazebo specific Subscribers
-    odom_gz_sub_ = nh.subscribe<nav_msgs::Odometry> (
-        odom_gz_topic_, 10, &Node::odomGzCallback, this);
+    if (environment_ == "gazebo") {
+        // Gazebo specific Subscribers
+        odom_gz_sub_ = nh.subscribe<nav_msgs::Odometry> (
+            odom_gz_topic_, 10, &Node::odomGzCallback, this);
+    }
     // Init Subscribers
     motor_thrust_sub_ = nh.subscribe<mav_msgs::Actuators> (
         motor_thrust_topic_, 10, &Node::motorThrustCallback, this);
