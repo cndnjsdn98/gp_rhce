@@ -26,7 +26,11 @@ from src.utils.quad import custom_quad_param_loader
 class VisualizerWrapper:
     def __init__(self):
         # Get Params
-        self.quad_name = rospy.get_param("gp_mpc/quad_name", default="clark")
+        self.quad_name = None
+        while self.quad_name is None:
+            self.quad_name = rospy.get_param("gp_mpc/quad_name", default=None)
+            rospy.sleep(1)
+            
         self.env = rospy.get_param("gp_mpc/environment", default="arena")
         
         self.quad = custom_quad_param_loader(self.quad_name)
