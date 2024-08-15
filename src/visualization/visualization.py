@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from src.utils.utils import separate_variables, quaternion_inverse, \
                             quaternion_to_euler, unwrap, q_dot_q, v_dot_q
+from mpl_toolkits.mplot3d import Axes3D
 
 def trajectory_tracking_results(img_save_dir, t_ref, x_ref, x_executed, u_ref, u_executed, mpc_error,
                                 w_control=None, legend_labels=None,
