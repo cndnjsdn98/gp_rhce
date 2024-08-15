@@ -69,8 +69,6 @@ class MocapOdomWrapper:
         twist_topic = "/mocap/" + quad_name + "/twist"
         imu_topic = "/mavros/imu/data_raw"
 
-        # odom_topic = quad_name + "/agiros_pilot/state_estimate"
-        # odom_topic = "/mavros/odometry/out"
         odom_topic = quad_name + "/ground_truth/odometry"
 
 
@@ -78,8 +76,8 @@ class MocapOdomWrapper:
         self.odom_pub = rospy.Publisher(odom_topic, Odometry, queue_size=10, tcp_nodelay=True)
         self.pose_msg = None
 
-        self.base_com_pub_thread = threading.Thread()
-        self.base_com_pub_thread.start()
+        self.odom_pub_thread = threading.Thread()
+        self.odom_pub_thread.start()
 
         # Subscribers
         self.pose_sub = rospy.Subscriber(pose_topic, PoseStamped, self.pose_callback, queue_size=10, tcp_nodelay=True)
@@ -148,13 +146,15 @@ class MocapOdomWrapper:
             quad_state_msg.pose.pose.orientation = Quaternion(x, y, z, w)
             quad_state_msg.twist.twist.linear = Vector3(*state_means[7:10])
             quad_state_msg.twist.twist.angular = Vector3(*state_means[10:])
+            # quad_state_msg.acceleration.linear = Vector3(*[0, 0, 0])
+            # quad_state_msg.motors = []
 
-                # quad_state_msg.acceleration.linear = Vector3(*[0, 0, 0])
-                # quad_state_msg.motors = []
-            def _base_com_pub_thread_func():
+            def _odom_pub_thread_func():
                 self.odom_pub.publish(quad_state_msg)
-            self.odom_pub_thread = threading.Thread(target=_base_com_pub_thread_func(), args=(), daemon=True)
+
+            self.odom_pub_thread = threading.Thread(target=_odom_pub_thread_func(), args=(), daemon=True)
             self.odom_pub_thread.start()
+
             # While rospy is not shutdownSpin 
             rate.sleep()
 
