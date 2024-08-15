@@ -282,6 +282,7 @@ class VisualizerWrapper:
         self.w_meas = None
         self.a_meas = None
         rospy.loginfo("Recording Complete.")
+        
     def pose_callback(self, msg):
         if not self.record:
             return

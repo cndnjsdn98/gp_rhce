@@ -23,6 +23,8 @@
     </node>
     
     <param name="results_dir" value="$(find gp_rhce)/results/"/>
-    <node name="visualizer_node" pkg="gp_rhce" type="visualizer_node.py" output="screen"/>
+    <node name="visualizer_node" pkg="gp_rhce" type="visualizer_node.py" output="screen">
+        <remap from="/mocap/$(arg quad_name)/pose" to="/mavros/vision_pose/pose"/>
+    </node>
 
 </launch>
