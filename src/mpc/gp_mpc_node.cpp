@@ -62,6 +62,14 @@ Node::Node(ros::NodeHandle& nh) {
 /// Destructor
 Node::~Node() {
     ROS_INFO("MPC Destructor is called!");
+    landing_ = true;
+    // Destructor that waits for ground_level_ to become true
+    ros::Rate rate(1); // Adjust the rate as needed
+    while (ros::ok() && !ground_level_) {
+        ros::spinOnce(); // Process any pending callbacks
+        rate.sleep();    // Sleep to avoid high CPU usage
+    }
+
     if (mpc_thread_.joinable()) {
         mpc_thread_.join();
     }
@@ -402,7 +410,7 @@ void Node::setReferenceTrajectory() {
         x_ref_prov_.clear();
         u_ref_prov_.clear();
         ground_level_ = false;
-        ROS_INFO("Abandoning Provisional Hovering Mode.");
+        ROS_INFO("Abandoning provisional setpoint.");
     }
 
     // Check if starting position of trajectory has been reached
