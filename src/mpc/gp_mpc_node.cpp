@@ -25,34 +25,17 @@ Node::Node(ros::NodeHandle& nh) {
     } 
     assert(quad_name_ != "");
     ROS_INFO("MPC: %s Loaded in %s", quad_name_.c_str(), environment_.c_str());
-    // initialize variables
+
+    // initialize vector sizes
     x_.resize(MPC_NX);
     p_.resize(N_POSITION_STATES);
     q_.resize(N_QUATERNION_STATES);
     v_.resize(N_VELOCITY_STATES);
     w_.resize(N_RATE_STATES);
     x_opt_.resize(MPC_NX);
-    u_opt_.resize(MPC_NU);
-
-    // Set landing target and landing speed
-    if (environment_ == "gazebo") {
-        land_z_ = 0.1;
-        land_dz_ = 0.1;
-    } else if (environment_ == "arena") {
-        land_z_ = 0.005;
-        land_dz_ = 0.1;
-    }
-    // Landing threshold 
-    land_z_thr_ = 0.07;
-    u_ref_prov_ = {0, 0, 0, 0};
-    // Initial Position reached threshold and velocity
-    if (environment_ == "gazebo") {
-        init_thr_ = 0.1;
-        init_v_ = 0.5;
-    } else if (environment_ == "arena") {
-        init_thr_ = 0.5;
-        init_v_ = 0.3;
-    }
+    u_opt_.resize(MPC_NU);  
+    x_ref_prov_.resize(MPC_NX);
+    u_ref_prov_.resize(MPC_NU);
     
     x_available_ = false;
     // Start thread to publish mpc status
@@ -70,8 +53,6 @@ Node::~Node() {
     }
     delete gp_mpc_;
 }
-
-
 
 void Node::initLaunchParameters(ros::NodeHandle& nh) {
     std::string ns = ros::this_node::getNamespace();
@@ -101,8 +82,26 @@ void Node::initLaunchParameters(ros::NodeHandle& nh) {
     nh.param<std::string>(ns + "/control_gz_topic", control_gz_topic_, "/" + quad_name_ + "/autopilot/control_command_input");
 
     // ROS Service topic names
-    nh.param<std::string>(ns + "mavros_set_mode_srvc", mavros_set_mode_srvc_, "/mavros/set_mode");
-    nh.param<std::string>(ns + "mavros_arming_srvc", mavros_arming_srvc_, "/mavros/cmd/arming");
+    nh.param<std::string>(ns + "/mavros_set_mode_srvc", mavros_set_mode_srvc_, "/mavros/set_mode");
+    nh.param<std::string>(ns + "/mavros_arming_srvc", mavros_arming_srvc_, "/mavros/cmd/arming");
+
+    // Initial flight parameters
+    nh.param<std::double>(ns + "/init_thr", init_thr_, 0.5); // Error allowed for initial position
+    nh.param<std::double>(ns + "/init_v", init_v_, 0.3); // Velocity approaching initial position
+
+    // Landing Parameters
+    nh.param<std::double>(ns + "/land_thr", land_thr_, 0.05); // Error allowed for landing
+    nh.param<std::double>(ns + "/land_z", land_z_, 0.05); // landing height
+    nh.param<std::double>(ns + "/land_dz", land_dz_, 0.1); // landing velocity
+
+        land_z_ = 0.1;
+        land_dz_ = 0.1;
+    } else if (environment_ == "arena") {
+        land_z_ = 0.005;
+        land_dz_ = 0.1;
+    }
+    // Landing threshold 
+    land_z_thr_ = 0.07;
 }
 
 void Node::initSubscribers(ros::NodeHandle& nh) {
@@ -369,6 +368,9 @@ void Node::setReferenceTrajectory() {
             x_ref_prov_.insert(x_ref_prov_.end(), x_.begin(), x_.begin() + N_POSITION_STATES + N_QUATERNION_STATES);
             x_ref_prov_.insert(x_ref_prov_.end(), N_VELOCITY_STATES + N_RATE_STATES , 0);
             ROS_INFO("Selecting current position as provisional setpoint.");
+        }
+        if (u_ref_prov_.empty()) {
+            u_ref_prov_ = {0, 0, 0, 0};
         }
         // Fill x_ref with x_ref_prov_
         for (auto& row: x_ref) {

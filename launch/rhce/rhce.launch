@@ -28,7 +28,7 @@
     <group if="$(eval arg('env') == 'gazebo')">
         <!-- MHE -->
         <group ns="gp_mhe">
-            <rosparam file="$(find gp_rhce)/config/simulation_run.yaml"/>
+            <rosparam file="$(find gp_rhce)/config/$(arg env)/gazebo_run.yaml"/>
             <rosparam file="$(find gp_rhce)/quads/$(arg quad_name)/$(arg quad_name)_mhe.yaml"/>
             <param name="environment" value="$(arg env)"/>
             <param name="quad_name" value="$(arg quad_name)"/>
@@ -40,7 +40,7 @@
         </group>
         <!-- MPC -->
         <group ns="gp_mpc">
-            <rosparam file="$(find gp_rhce)/config/simulation_run.yaml"/>
+            <rosparam file="$(find gp_rhce)/config/$(arg env)/gazebo_run.yaml"/>
             <rosparam file="$(find gp_rhce)/quads/$(arg quad_name)/$(arg quad_name)_mpc.yaml"/>
             <param name="environment" value="$(arg env)"/>
             <param name="quad_name" value="$(arg quad_name)"/>
@@ -57,7 +57,7 @@
     <group if="$(eval arg('env') == 'arena')">
         <!-- MHE -->
         <group ns="gp_mhe">
-            <rosparam file="$(find gp_rhce)/config/arena_run.yaml"/>
+            <rosparam file="$(find gp_rhce)/config/$(arg env)/arena_run.yaml"/>
             <rosparam file="$(find gp_rhce)/quads/$(arg quad_name)/$(arg quad_name)_mhe.yaml"/>
             <param name="environment" value="$(arg env)"/>
             <param name="quad_name" value="$(arg quad_name)"/>
@@ -69,7 +69,7 @@
         </group>
         <!-- MPC -->
         <group ns="gp_mpc">
-            <rosparam file="$(find gp_rhce)/config/arena_run.yaml"/>
+            <rosparam file="$(find gp_rhce)/config/$(arg env)/arena_run.yaml"/>
             <rosparam file="$(find gp_rhce)/quads/$(arg quad_name)/$(arg quad_name)_mpc.yaml"/>
             <param name="environment" value="$(arg env)"/>
             <param name="quad_name" value="$(arg quad_name)"/>

@@ -180,11 +180,11 @@ def minimum_snap_trajectory_generator(traj_derivatives, yaw_derivatives, t_ref, 
     return reference_traj, t_ref, reference_u
 
 
-def load_map_limits_from_file(map_limits):
+def load_map_limits_from_file(map_limits, environment):
     if map_limits is not None and map_limits != "None":
         # config_path = DirectoryConfig.CONFIG_DIR
         config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'config')
-        params_file = os.path.join(config_path, map_limits + '.yaml')
+        params_file = os.path.join(config_path, environment, map_limits + '.yaml')
         try:
             with open(params_file) as file:
                 limits = yaml.full_load(file)
@@ -219,7 +219,7 @@ def straight_trajectory(quad, discretization_dt, speed):
     return reference_traj, t_ref, reference_u
 
 def random_trajectory(quad, discretization_dt, seed, speed, map_name=None, plot=False, environment="gazebo"):
-    map_limits = load_map_limits_from_file(map_name)
+    map_limits = load_map_limits_from_file(map_name, environment)
 
     # Get a random smooth position trajectory
     pos_traj, att_traj = random_periodical_trajectory(random_state=seed, map_limits=map_limits, plot=False)
@@ -268,7 +268,7 @@ def loop_trajectory(quad, discretization_dt, radius, z, lin_acc, clockwise, yawi
     """
 
     # Apply map limits to radius
-    map_limits = load_map_limits_from_file(map_name)
+    map_limits = load_map_limits_from_file(map_name, environment)
     if map_limits is not None:
         x_max_range = map_limits["x"][1] - map_limits["x"][0]
         y_max_range = map_limits["y"][1] - map_limits["y"][0]
@@ -382,7 +382,7 @@ def lemniscate_trajectory(quad, discretization_dt, radius, z, lin_acc, clockwise
     """
 
     # Apply map limits to radius
-    map_limits = load_map_limits_from_file(map_name)
+    map_limits = load_map_limits_from_file(map_name, environment)
     if map_limits is not None:
         x_max_range = map_limits["x"][1] - map_limits["x"][0]
         y_max_range = map_limits["y"][1] - map_limits["y"][0]
@@ -474,7 +474,7 @@ def updown_trajectory(quad, discretization_dt, lin_acc, radius, z, v_max, map_na
     """
 
         # Apply map limits to radius
-    map_limits = load_map_limits_from_file(map_name)
+    map_limits = load_map_limits_from_file(map_name, environment)
     if map_limits is not None:
         x_max_range = map_limits["x"][1] - map_limits["x"][0]
         y_max_range = map_limits["y"][1] - map_limits["y"][0]

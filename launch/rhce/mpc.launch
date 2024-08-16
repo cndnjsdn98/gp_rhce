@@ -20,7 +20,7 @@
     <param name="compile" value="$(arg compile)"/> 
 
     <group if="$(eval arg('env') == 'gazebo')" ns="gp_mpc">
-        <rosparam file="$(find gp_rhce)/config/simulation_run.yaml"/>
+        <rosparam file="$(find gp_rhce)/config/$(arg env)/gazebo_run.yaml"/>
         <rosparam file="$(find gp_rhce)/quads/$(arg quad_name)/$(arg quad_name)_mpc.yaml"/>
         <param name="environment" value="$(arg env)"/>
         <param name="quad_name" value="$(arg quad_name)"/>
@@ -33,7 +33,7 @@
     </group>        
 
     <group if="$(eval arg('env') == 'arena')" ns="gp_mpc">
-        <rosparam file="$(find gp_rhce)/config/arena_run.yaml"/>
+        <rosparam file="$(find gp_rhce)/config/$(arg env)/arena_run.yaml"/>
         <rosparam file="$(find gp_rhce)/quads/$(arg quad_name)/$(arg quad_name)_mpc.yaml"/>
         <param name="environment" value="$(arg env)"/>
         <param name="quad_name" value="$(arg quad_name)"/>
