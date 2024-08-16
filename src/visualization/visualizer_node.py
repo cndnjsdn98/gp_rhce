@@ -143,6 +143,7 @@ class VisualizerWrapper:
         min_50_len = np.min((len(self.t_ref), len(self.w_control)))
         self.x_ref = self.x_ref[:min_50_len]
         self.t_ref = self.t_ref[:min_50_len]
+        self.u_ref = self.u_ref[:min_50_len]
         self.w_control = self.w_control[:min_50_len]
 
         print(self.t_ref.shape, self.x_act.shape)
