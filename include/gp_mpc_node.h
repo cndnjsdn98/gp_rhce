@@ -42,7 +42,7 @@ private:
     std::vector<std::vector<double>> x_ref_, u_ref_;
     std::vector<double> t_ref_, x_ref_prov_, u_ref_prov_;
     std::string ref_traj_name_;
-    double land_z_, land_dz_, land_z_thr_, init_thr_, init_v_;
+    double land_z_, land_dz_, land_thr_, init_thr_, init_v_;
     int ref_len_;
 
     // Recording Parameters 

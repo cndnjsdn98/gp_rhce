@@ -95,22 +95,13 @@ void Node::initLaunchParameters(ros::NodeHandle& nh) {
     nh.param<std::string>(ns + "/mavros_arming_srvc", mavros_arming_srvc_, "/mavros/cmd/arming");
 
     // Initial flight parameters
-    nh.param<std::double>(ns + "/init_thr", init_thr_, 0.5); // Error allowed for initial position
-    nh.param<std::double>(ns + "/init_v", init_v_, 0.3); // Velocity approaching initial position
+    nh.param<double>(ns + "/init_thr", init_thr_, 0.5); // Error allowed for initial position
+    nh.param<double>(ns + "/init_v", init_v_, 0.3); // Velocity approaching initial position
 
     // Landing Parameters
-    nh.param<std::double>(ns + "/land_thr", land_thr_, 0.05); // Error allowed for landing
-    nh.param<std::double>(ns + "/land_z", land_z_, 0.05); // landing height
-    nh.param<std::double>(ns + "/land_dz", land_dz_, 0.1); // landing velocity
-
-        land_z_ = 0.1;
-        land_dz_ = 0.1;
-    } else if (environment_ == "arena") {
-        land_z_ = 0.005;
-        land_dz_ = 0.1;
-    }
-    // Landing threshold 
-    land_z_thr_ = 0.07;
+    nh.param<double>(ns + "/land_thr", land_thr_, 0.05); // Error allowed for landing
+    nh.param<double>(ns + "/land_z", land_z_, 0.05); // landing height
+    nh.param<double>(ns + "/land_dz", land_dz_, 0.1); // landing velocity
 }
 
 void Node::initSubscribers(ros::NodeHandle& nh) {
@@ -355,7 +346,7 @@ void Node::setReferenceTrajectory() {
         x_ref[0][2] = (dz > 0) ? std::min(land_z_, x_[2] + dz) : std::max(land_z_, x_[2] + dz);
         
         // Reached landing height
-        if (std::abs(x_[2] - land_z_) < land_z_thr_) {
+        if (std::abs(x_[2] - land_z_) < land_thr_) {
             if (!ground_level_) {
                 ROS_INFO("Vehicle at Ground Level");
                 ground_level_ = true;
