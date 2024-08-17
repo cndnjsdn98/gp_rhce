@@ -46,6 +46,7 @@ Node::Node(ros::NodeHandle& nh) {
 Node::~Node() {
     ROS_INFO("MPC Destructor is called!");
     landing_ = true;
+    ROS_INFO("Landing...");
     // Destructor that waits for ground_level_ to become true
     ros::Rate rate(1); // Adjust the rate as needed
     while (ros::ok() && !ground_level_) {
@@ -60,6 +61,7 @@ Node::~Node() {
         status_thread_.join();
     }
     delete gp_mpc_;
+    // TODO: can i clear ros params
 }
 
 void Node::initLaunchParameters(ros::NodeHandle& nh) {
@@ -136,6 +138,7 @@ void Node::landCallback(const std_msgs::Bool::ConstPtr& msg) {
     if (msg->data) {
         // Lower drone to a safe height
         landing_ = true;
+        ROS_INFO("Landing...");
         // Stop recording
         std_msgs::Bool msg;
         msg.data = false;
@@ -367,6 +370,7 @@ void Node::setReferenceTrajectory() {
             x_ref_.clear();
             u_ref_.clear();
             t_ref_.clear();
+            // TODO: Check if it gets cleared here correctly. its not accepting new trajectory
             x_initial_reached_ = false;
             mpc_idx_ = 0;
             landing_ = false;
@@ -469,6 +473,7 @@ void Node::setReferenceTrajectory() {
         std::vector<std::vector<double>> u_ref(1, std::vector<double>(MPC_NU, 0.0));
         // Lower drone to a safe height
         landing_ = true;
+        ROS_INFO("Landing...");
 
         // Set reference to final linear and angualr position of trajectory
         std::copy(x_ref_.back().begin(), x_ref_.back().begin() + IDX_VELOCITY_START, x_ref[0].begin());

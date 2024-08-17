@@ -139,24 +139,26 @@ class VisualizerWrapper:
         self.t_act = self.t_act[:min_len] - self.t_act[0]
         self.motor_thrusts = self.motor_thrusts[:min_len]
 
-        # Data Sampled at 50Hz
-        min_50_len = np.min((len(self.t_ref), len(self.w_control)))
-        self.x_ref = self.x_ref[:min_50_len]
-        self.t_ref = self.t_ref[:min_50_len]
-        self.u_ref = self.u_ref[:min_50_len]
-        self.w_control = self.w_control[:min_50_len]
+        while len(self.w_control) < self.seq_len:
+            self.w_control = np.append(self.w_control, self.w_control[-1][np.newaxis], axis=0)
+        
+        while len(self.x_act) < self.seq_len * 2:
+            self.x_act  = np.append(self.x_act, self.x_act[-1][np.newaxis], axis=0)
+            self.t_act  = np.append(self.t_act, self.t_act[-1])
 
-        print(self.t_ref.shape, self.x_act.shape)
+        while len(self.motor_thrusts) < self.seq_len * 2:
+            self.motor_thrusts = np.append(self.motor_thrusts, self.motor_thrusts[-1][np.newaxis], axis=0)
+
         # Save MPC results
-        traj_len = np.min((len(self.t_ref), int(len(self.x_act)/2)))
-        state_in = np.zeros((traj_len, self.x_act.shape[1]))
-        state_out = np.zeros((len(state_in), self.x_act.shape[1]))
-        u_in = np.zeros((len(state_in), 4))
+        state_in = np.zeros((self.seq_len, self.x_act.shape[1]))
+        state_out = np.zeros((self.seq_len, self.x_act.shape[1]))
+        u_in = np.zeros((self.seq_len, 4))
         mpc_error = np.zeros_like(state_in)
         x_pred_traj = np.zeros_like(state_in)
-        mpc_t = np.zeros((len(state_in), 1))
+        mpc_t = np.zeros((self.seq_len, 1))
+
         rospy.loginfo("Filling in MPC dataset and saving...")
-        for i in tqdm(range(len(state_in))): 
+        for i in tqdm(range(self.seq_len)): 
             ii = i * 2
             x0 = self.x_act[ii]
             xf = self.x_act[ii+1]
@@ -201,7 +203,7 @@ class VisualizerWrapper:
             pickle.dump(mpc_dict, f)
         with open(os.path.join(self.mpc_dir, 'meta_data.json'), "w") as f:
             json.dump(self.mpc_meta, f, indent=4)
-        trajectory_tracking_results(self.mpc_dir, self.t_ref, self.x_ref, state_in,
+        trajectory_tracking_results(self.mpc_dir, self.t_ref, mpc_t, self.x_ref, state_in,
                                     self.u_ref, u_in, mpc_error, w_control=self.w_control, file_type='png')
 
         # Check MHE is running and if it is continue to save MHE results

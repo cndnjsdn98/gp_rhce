@@ -5,7 +5,7 @@ from src.utils.utils import separate_variables, quaternion_inverse, \
                             quaternion_to_euler, unwrap, q_dot_q, v_dot_q
 from mpl_toolkits.mplot3d import Axes3D
 
-def trajectory_tracking_results(img_save_dir, t_ref, x_ref, x_executed, u_ref, u_executed, mpc_error,
+def trajectory_tracking_results(img_save_dir, t_ref, t_executed, x_ref, x_executed, u_ref, u_executed, mpc_error,
                                 w_control=None, legend_labels=None,
                                 quat_error=True, file_type='png'):
     if legend_labels is None:
@@ -31,7 +31,7 @@ def trajectory_tracking_results(img_save_dir, t_ref, x_ref, x_executed, u_ref, u
     for i in range(3):
         if with_ref:
             ax[i, 0].plot(t_ref, x_ref[:, i], label=legend_labels[0])
-        ax[i, 0].plot(t_ref, x_executed[:, i], label=legend_labels[1])
+        ax[i, 0].plot(t_executed, x_executed[:, i], label=legend_labels[1])
         ax[i, 0].legend()
         ax[i, 0].set_ylabel(labels[i])
     ax[0, 0].set_title(r'$p\:[m]$')
@@ -59,13 +59,13 @@ def trajectory_tracking_results(img_save_dir, t_ref, x_ref, x_executed, u_ref, u
     for i in range(3):
         if with_ref:
             ax[i, 2].plot(t_ref, x_ref[:, i + 7], label=legend_labels[0])
-        ax[i, 2].plot(t_ref, x_executed[:, i + 7], label=legend_labels[1])
+        ax[i, 2].plot(t_executed, x_executed[:, i + 7], label=legend_labels[1])
         ax[i, 2].legend()
     ax[0, 2].set_title(r'$v\:[m/s]$')
     ax[2, 2].set_xlabel(r'$t [s]$')
 
     for i in range(3):
-        ax[i, 3].plot(t_ref, x_executed[:, i + 10], label=legend_labels[1])
+        ax[i, 3].plot(t_executed, x_executed[:, i + 10], label=legend_labels[1])
         if with_ref:
             ax[i, 3].plot(t_ref, x_ref[:, i + 10], label=legend_labels[0])
         if w_control is not None:
@@ -82,7 +82,7 @@ def trajectory_tracking_results(img_save_dir, t_ref, x_ref, x_executed, u_ref, u
     
     fig, ax = plt.subplots(3, 1, sharex="all", sharey="all", figsize=(22,15))
     for i in range(3):
-        ax[i].plot(t_ref, x_executed[:, i + 10], label=legend_labels[1])
+        ax[i].plot(t_executed, x_executed[:, i + 10], label=legend_labels[1])
         if with_ref:
             ax[i].plot(t_ref, x_ref[:, i + 10], label=legend_labels[0])
         if w_control is not None:
@@ -100,7 +100,7 @@ def trajectory_tracking_results(img_save_dir, t_ref, x_ref, x_executed, u_ref, u
         fig, ax = plt.subplots(1, 4, sharex="all", sharey="all", figsize=(15,10))
         for i in range(4):
             ax[i].plot(t_ref, u_ref[:, i], label='ref', linewidth=0.75)
-            ax[i].plot(t_ref, u_executed[:, i], label='executed', linewidth=0.75)
+            ax[i].plot(t_executed, u_executed[:, i], label='executed', linewidth=0.75)
             ax[i].set_xlabel(r'$t [s]$')
             tit = 'Control %d' % (i + 1)
             ax[i].set_title(tit)
@@ -116,7 +116,7 @@ def trajectory_tracking_results(img_save_dir, t_ref, x_ref, x_executed, u_ref, u
     for i in range(3):
         if with_ref:
             ax[i].plot(t_ref, x_ref[:, i], label=legend_labels[0])
-        ax[i].plot(t_ref, x_executed[:, i], label=legend_labels[1])
+        ax[i].plot(t_executed, x_executed[:, i], label=legend_labels[1])
         tit = 'P_' + labels[i]
         ax[i].set_ylabel(tit)
         ax[i].legend()
@@ -150,7 +150,7 @@ def trajectory_tracking_results(img_save_dir, t_ref, x_ref, x_executed, u_ref, u
     for i in range(3):
         if with_ref:
             ax[i].plot(t_ref, x_ref[:, i+7], label=legend_labels[0])
-        ax[i].plot(t_ref, x_executed[:, i+7], label=legend_labels[1])
+        ax[i].plot(t_executed, x_executed[:, i+7], label=legend_labels[1])
         tit = 'V_' + labels[i]
         ax[i].set_ylabel(tit)
         ax[i].legend()
@@ -167,7 +167,7 @@ def trajectory_tracking_results(img_save_dir, t_ref, x_ref, x_executed, u_ref, u
     for i in range(3):
         if with_ref:
             ax[i].plot(t_ref, x_ref[:, i+10], label=legend_labels[0])
-        ax[i].plot(t_ref, x_executed[:, i+10], label=legend_labels[1])
+        ax[i].plot(t_executed, x_executed[:, i+10], label=legend_labels[1])
         if w_control is not None:
             ax[i].plot(t_ref, w_control[:, i], label='control')
         tit = 'dq_' + labels[i]
