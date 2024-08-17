@@ -139,6 +139,7 @@ class VisualizerWrapper:
         self.t_act = self.t_act[:min_len] - self.t_act[0]
         self.motor_thrusts = self.motor_thrusts[:min_len]
 
+        self.w_control = self.w_control[:self.seq_len]
         while len(self.w_control) < self.seq_len:
             self.w_control = np.append(self.w_control, self.w_control[-1][np.newaxis], axis=0)
         
@@ -156,7 +157,8 @@ class VisualizerWrapper:
         mpc_error = np.zeros_like(state_in)
         x_pred_traj = np.zeros_like(state_in)
         mpc_t = np.zeros((self.seq_len, 1))
-
+        print(self.t_act[-1], self.t_ref[-1])
+        print(len(self.t_act), len(self.t_ref))
         rospy.loginfo("Filling in MPC dataset and saving...")
         for i in tqdm(range(self.seq_len)): 
             ii = i * 2
@@ -175,7 +177,10 @@ class VisualizerWrapper:
 
             # MPC Model error
             x_err = xf - x_pred
-            mpc_error[i] = x_err / dt
+            if dt == 0:
+                mpc_error[i] = 0
+            else:
+                mpc_error[i] = x_err / dt
 
             # Save to array for plots
             state_in[i] = self.x_act[ii] if self.use_groundtruth else self.x_est[ii]
@@ -297,7 +302,6 @@ class VisualizerWrapper:
         if self.v_act is not None and self.w_act is not None:
             x = self.p_act + self.q_act + self.v_act + self.w_act
             self.x_act = np.append(self.x_act, np.array(x)[np.newaxis, :], axis=0)
-        self.t_act = np.append(self.t_act, msg.header.stamp.to_time())
 
     def twist_callback(self, msg):
         if not self.record:
@@ -315,6 +319,8 @@ class VisualizerWrapper:
         if self.p_meas is not None:
             y = self.p_meas + self.w_meas + self.a_meas
             self.y = np.append(self.y, np.array(y)[np.newaxis, :], axis=0)
+        self.t_act = np.append(self.t_act, msg.header.stamp.to_time())
+        print(msg.header.stamp.to_time())
 
     def motor_thrust_callback(self, msg):
         if not self.record:
@@ -340,7 +346,7 @@ class VisualizerWrapper:
         
         self.x_act = np.append(self.x_act, np.array(x)[np.newaxis, :], axis=0)
 
-        self.t_act = np.append(self.t_act, msg.header.stamp.to_time())
+        # self.t_act = np.append(self.t_act, msg.header.stamp.to_time())
 
     def state_est_callback(self, msg):
         if not self.record:

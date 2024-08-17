@@ -354,19 +354,17 @@ void Node::setReferenceTrajectory() {
                 ROS_INFO("Vehicle at Ground Level");
                 ground_level_ = true;
             }
-            if (environment_ == "arena") {
-                mavros_msgs::CommandBool disarm_cmd;
-                disarm_cmd.request.value = false;
-                if (arming_client_.call(disarm_cmd) &&
-                            !disarm_cmd.response.success) {
-                    // Disarm Failed
-                    return gp_mpc_->setReference(x_ref, u_ref);
-                }
-                ROS_INFO("Vehicle Disarmed");
-            }
-            // Compute MSE
-            optimization_dt_ /= mpc_idx_;
-            ROS_INFO("Tracking complete. Mean MPC opt. time: %.3f ms", optimization_dt_*1000);
+            // TODO: Disarming not working
+            // if (environment_ == "arena") {
+            //     mavros_msgs::CommandBool disarm_cmd;
+            //     disarm_cmd.request.value = false;
+            //     if (arming_client_.call(disarm_cmd) &&
+            //                 !disarm_cmd.response.success) {
+            //         // Disarm Failed
+            //         return gp_mpc_->setReference(x_ref, u_ref);
+            //     }
+            //     ROS_INFO("Vehicle Disarmed");
+            // }
             x_ref_.clear();
             u_ref_.clear();
             t_ref_.clear();
@@ -471,6 +469,10 @@ void Node::setReferenceTrajectory() {
         // End of reference reached
         std::vector<std::vector<double>> x_ref(1, std::vector<double>(MPC_NX, 0.0));
         std::vector<std::vector<double>> u_ref(1, std::vector<double>(MPC_NU, 0.0));
+        // Compute MSE
+        optimization_dt_ /= mpc_idx_;
+        ROS_INFO("Tracking complete. Mean MPC opt. time: %.3f ms", optimization_dt_*1000);
+
         // Lower drone to a safe height
         landing_ = true;
         ROS_INFO("Landing...");
