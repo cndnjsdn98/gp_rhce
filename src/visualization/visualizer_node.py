@@ -89,17 +89,17 @@ class VisualizerWrapper:
         record_topic = rospy.get_param("/gp_mpc/record_topic", default = "/" + self.quad_name + "/record")
 
         # Subscribers
-        self.pose_sub = rospy.Subscriber(pose_topic, PoseStamped, self.pose_callback, queue_size=10, tcp_nodelay=True)
-        self.twist_sub = rospy.Subscriber(twist_topic, TwistStamped, self.twist_callback, queue_size=10, tcp_nodelay=True)
-        self.imu_sub = rospy.Subscriber(imu_topic, Imu, self.imu_callback, queue_size=10, tcp_nodelay=True)
-        self.motor_thrust_sub = rospy.Subscriber(motor_thrust_topic, Actuators, self.motor_thrust_callback, queue_size=10, tcp_nodelay=True)
-        self.odom_gz_sub = rospy.Subscriber(odom_gz_topic, Odometry, self.odom_gz_callback, queue_size=10, tcp_nodelay=True)
-        self.state_est_sub = rospy.Subscriber(state_est_topic, Odometry, self.state_est_callback, queue_size=10, tcp_nodelay=True)
-        self.acceleration_est_sub = rospy.Subscriber(acceleration_est_topic, Imu, self.acceleration_est_callback, queue_size=10, tcp_nodelay=True)
-        self.ref_sub = rospy.Subscriber(ref_topic, ReferenceTrajectory, self.ref_callback, queue_size=10, tcp_nodelay=True)
-        self.control_sub = rospy.Subscriber(control_topic, AttitudeTarget, self.control_callback, queue_size=10, tcp_nodelay=True)
-        self.control_gz_sub = rospy.Subscriber(control_gz_topic, ControlCommand, self.control_gz_callback, queue_size=10, tcp_nodelay=True)
-        self.record_sub = rospy.Subscriber(record_topic, Bool, self.record_callback, queue_size=10, tcp_nodelay=True)
+        self.pose_sub = rospy.Subscriber(pose_topic, PoseStamped, self.pose_callback, queue_size=10)
+        self.twist_sub = rospy.Subscriber(twist_topic, TwistStamped, self.twist_callback, queue_size=10)
+        self.imu_sub = rospy.Subscriber(imu_topic, Imu, self.imu_callback, queue_size=10)
+        self.motor_thrust_sub = rospy.Subscriber(motor_thrust_topic, Actuators, self.motor_thrust_callback, queue_size=10)
+        self.odom_gz_sub = rospy.Subscriber(odom_gz_topic, Odometry, self.odom_gz_callback, queue_size=10)
+        self.state_est_sub = rospy.Subscriber(state_est_topic, Odometry, self.state_est_callback, queue_size=10)
+        self.acceleration_est_sub = rospy.Subscriber(acceleration_est_topic, Imu, self.acceleration_est_callback, queue_size=10)
+        self.ref_sub = rospy.Subscriber(ref_topic, ReferenceTrajectory, self.ref_callback, queue_size=10)
+        self.control_sub = rospy.Subscriber(control_topic, AttitudeTarget, self.control_callback, queue_size=10)
+        self.control_gz_sub = rospy.Subscriber(control_gz_topic, ControlCommand, self.control_gz_callback, queue_size=10)
+        self.record_sub = rospy.Subscriber(record_topic, Bool, self.record_callback, queue_size=10)
 
         # Initialize vectors to store Reference Trajectory
         self.seq_len = None
@@ -261,6 +261,7 @@ class VisualizerWrapper:
                 pickle.dump(mhe_dict, f)
             with open(os.path.join(self.mhe_dir, 'meta_data.json'), "w") as f:
                 json.dump(self.mhe_meta, f, indent=4)
+            # TODO: x_act and y is different but it saves the same. looks like the it saves incorrectly timed
             state_estimation_results(self.mhe_dir, self.t_act, self.x_act, self.x_est, self.y,
                                      mhe_error, self.accel_est, file_type='png')
         # --- Reset all vectors ---
