@@ -52,14 +52,14 @@ GP_MHE::~GP_MHE() {
 
 void GP_MHE::setHistory(const std::vector<std::vector<double>>& y_history, const std::vector<std::vector<double>>& u_history) {
     std::copy(y_history[0].begin(), y_history[0].end(), yref_0_.begin());
-    std::fill(yref_0_.begin() + N_MEAS_STATES, yref_0_.begin() + N_MEAS_STATES + NU, 0);
-    std::copy(x0_bar_.begin(), x0_bar_.end(), yref_0_.begin() + N_MEAS_STATES + NU);
+    // std::fill(yref_0_.begin() + N_MEAS_STATES, yref_0_.begin() + N_MEAS_STATES + MHE_NU, 0);
+    std::copy(x0_bar_.begin(), x0_bar_.end(), yref_0_.begin() + N_MEAS_STATES + MHE_NU);
 
 
     ocp_nlp_cost_model_set(nlp_config_, nlp_dims_, nlp_in_, 0, "yref", static_cast<void*>(yref_0_.data()));
     for (int i = 1; i < MHE_N; ++i) { 
         std::copy(y_history[i].begin(), y_history[i].end(), yref_.begin());
-        std::fill(yref_.begin() + N_MEAS_STATES, yref_.begin() + N_MEAS_STATES + NU, 0);
+        // std::fill(yref_.begin() + N_MEAS_STATES, yref_.begin() + N_MEAS_STATES + MHE_NU, 0);
         ocp_nlp_cost_model_set(nlp_config_, nlp_dims_, nlp_in_, i, "yref", static_cast<void*>(yref_.data()));
     }
 
@@ -80,6 +80,7 @@ int GP_MHE::solveMHE(const std::vector<std::vector<double>>& y_history, const st
     if (status_ != ACADOS_SUCCESS) {
         return status_;
     } 
+    status_ = ACADOS_SUCCESS;
     ocp_nlp_get(nlp_config_, nlp_solver_, "time_tot", &optimization_dt_);
     ocp_nlp_out_get(nlp_config_, nlp_dims_, nlp_out_, 1, "x", &x0_bar_[0]);
     return status_;

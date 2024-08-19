@@ -3,6 +3,10 @@ with_gp: False
 mhe_model_name: ""
 mhe_model_version: ""
 
+# Topic Names
+pose_topic: "/mavros/vision_pose/pose"
+imu_topic: "/mavros/imu/data_raw"
+
 # Landing options
 land_z: 0.15
 land_dz: 0.1

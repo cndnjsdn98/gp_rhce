@@ -52,8 +52,8 @@ private:
     ros::Subscriber odom_gz_sub_;
 
     // System States
-    std::vector<double> x_est_, p_, w_, a_, y_, u_;
-    std::vector<std::vector<double>> u_hist_, y_hist_;
+    std::vector<double> x_est_, p_, w_, a_, y_, u_, acceleration_est_;
+    std::vector<std::vector<double>> u_hist_, y_hist_, u_hist_cp_, y_hist_cp_;
     bool hist_received_ = false;
 
     // Recording Parameters 

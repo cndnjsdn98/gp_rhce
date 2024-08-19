@@ -17,24 +17,37 @@ Node::Node(ros::NodeHandle& nh) {
     initLaunchParameters(nh);
     initSubscribers(nh);
     initPublishers(nh);
+    assert(quad_name_ != "");
     gp_mhe_ = new GP_MHE(mhe_type_);
     if (gp_mhe_ == nullptr) {
         ROS_ERROR("FAILED TO CREATE GP_MHE INSTANCE");
         std::exit(EXIT_FAILURE);
     } 
-    assert(quad_name_ != "");
+    if (p_.empty()) {
+        ROS_INFO("Waiting for Position Measurement...");
+        ros::Rate rate(0.5);
+        while (p_.empty() && ros::ok()) {
+            ros::spinOnce();
+            rate.sleep();
+        }
+    }
+
     ROS_INFO("MHE: %s Loaded in %s", quad_name_.c_str(), environment_.c_str());
 
     // Init vectors
     x_est_.resize(MHE_NX);
-    p_.resize(N_POSITION_STATES);
-    w_.resize(N_RATE_STATES);
-    a_.resize(N_ACCEL_STATES);
+    p_.reserve(N_POSITION_STATES);
+    w_.reserve(N_RATE_STATES);
+    a_.reserve(N_ACCEL_STATES);
     y_.resize(N_MEAS_STATES);
     u_.resize(N_MOTORS);
     y_hist_.resize(MHE_N, std::vector<double>(N_MEAS_STATES));
+    y_hist_cp_.resize(MHE_N, std::vector<double>(N_MEAS_STATES));
     u_hist_.resize(MHE_N, std::vector<double>(N_MOTORS));
-
+    u_hist_cp_.resize(MHE_N, std::vector<double>(N_MOTORS));
+    if (mhe_type_ == "kinematic") {
+        acceleration_est_.resize(3);
+    }
 }
 
 
@@ -96,10 +109,10 @@ void Node::initPublishers(ros::NodeHandle& nh) {
 
 
 void Node::imuCallback(const sensor_msgs::Imu::ConstPtr& msg) {
-    if (p_.empty()) {
-        ROS_WARN("Position measurement not received yet. Skipping time step...");
-        return;
-    } 
+    // if (p_.empty()) {
+    //     ROS_WARN("Position measurement not received yet. Skipping time step...");
+    //     return;
+    // } 
     if (mhe_type_ == "dynamic" && u_.empty()) {
         ROS_WARN("Motor Thrusts not received yet. Skipping time step...");
         return;
@@ -125,7 +138,7 @@ void Node::imuCallback(const sensor_msgs::Imu::ConstPtr& msg) {
             ROS_WARN("MHE Recording time skipped messages: %d", skipped_messages);
         }
     }
-
+    lock_.lock();
     // Fill empty vectors with current sensor measurements and motor thrust
     if (!hist_received_) {
         for (auto& row: y_hist_) {
@@ -151,6 +164,7 @@ void Node::imuCallback(const sensor_msgs::Imu::ConstPtr& msg) {
         y_hist_[MHE_N-1] = y_;
         u_hist_[MHE_N-1] = u_;
     }
+    lock_.unlock();
 
     // Run MHE
     if (mhe_thread_.joinable()) {
@@ -190,7 +204,11 @@ void Node::odomGzCallback(const nav_msgs::Odometry::ConstPtr& msg) {
 void Node::runMHE() {
     try {
         // optimize MHE
-        if (gp_mhe_->solveMHE(y_hist_, u_hist_) == ACADOS_SUCCESS) {
+        lock_.lock();
+        y_hist_cp_ = y_hist_;
+        u_hist_cp_ = u_hist_;
+        lock_.unlock();
+        if (gp_mhe_->solveMHE(y_hist_cp_, u_hist_cp_) == ACADOS_SUCCESS) {
             gp_mhe_->getStateEst(x_est_);
             optimization_dt_ += gp_mhe_->getOptimizationTime();
             mhe_idx_++;
@@ -203,14 +221,13 @@ void Node::runMHE() {
     }  
 
     if (mhe_type_ == "kinematic") {
-        std::vector<double> acceleration_est(3, 0.0);
-        std::copy(x_est_.begin() + 13, x_est_.end(), acceleration_est.begin());
+        std::copy(x_est_.begin() + 13, x_est_.end(), acceleration_est_.begin());
         sensor_msgs::Imu acceleration_est_msg;
         acceleration_est_msg.header.stamp = ros::Time::now();
         acceleration_est_msg.header.seq = mhe_seq_num_;
-        acceleration_est_msg.linear_acceleration.x = acceleration_est[0];
-        acceleration_est_msg.linear_acceleration.y = acceleration_est[1];
-        acceleration_est_msg.linear_acceleration.z = acceleration_est[2];
+        acceleration_est_msg.linear_acceleration.x = acceleration_est_[0];
+        acceleration_est_msg.linear_acceleration.y = acceleration_est_[1];
+        acceleration_est_msg.linear_acceleration.z = acceleration_est_[2];
         acceleration_est_pub_.publish(acceleration_est_msg);
     }
 

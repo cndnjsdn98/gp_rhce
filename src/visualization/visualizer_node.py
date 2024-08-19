@@ -89,17 +89,17 @@ class VisualizerWrapper:
         record_topic = rospy.get_param("/gp_mpc/record_topic", default = "/" + self.quad_name + "/record")
 
         # Subscribers
-        self.pose_sub = rospy.Subscriber(pose_topic, PoseStamped, self.pose_callback, queue_size=10)
-        self.twist_sub = rospy.Subscriber(twist_topic, TwistStamped, self.twist_callback, queue_size=10)
-        self.imu_sub = rospy.Subscriber(imu_topic, Imu, self.imu_callback, queue_size=10)
-        self.motor_thrust_sub = rospy.Subscriber(motor_thrust_topic, Actuators, self.motor_thrust_callback, queue_size=10)
-        self.odom_gz_sub = rospy.Subscriber(odom_gz_topic, Odometry, self.odom_gz_callback, queue_size=10)
-        self.state_est_sub = rospy.Subscriber(state_est_topic, Odometry, self.state_est_callback, queue_size=10)
-        self.acceleration_est_sub = rospy.Subscriber(acceleration_est_topic, Imu, self.acceleration_est_callback, queue_size=10)
-        self.ref_sub = rospy.Subscriber(ref_topic, ReferenceTrajectory, self.ref_callback, queue_size=10)
-        self.control_sub = rospy.Subscriber(control_topic, AttitudeTarget, self.control_callback, queue_size=10)
-        self.control_gz_sub = rospy.Subscriber(control_gz_topic, ControlCommand, self.control_gz_callback, queue_size=10)
-        self.record_sub = rospy.Subscriber(record_topic, Bool, self.record_callback, queue_size=10)
+        self.pose_sub = rospy.Subscriber(pose_topic, PoseStamped, self.pose_callback, queue_size=10, tcp_nodelay=True)
+        self.twist_sub = rospy.Subscriber(twist_topic, TwistStamped, self.twist_callback, queue_size=10, tcp_nodelay=True)
+        self.imu_sub = rospy.Subscriber(imu_topic, Imu, self.imu_callback, queue_size=10, tcp_nodelay=True)
+        self.motor_thrust_sub = rospy.Subscriber(motor_thrust_topic, Actuators, self.motor_thrust_callback, queue_size=10, tcp_nodelay=True)
+        self.odom_gz_sub = rospy.Subscriber(odom_gz_topic, Odometry, self.odom_gz_callback, queue_size=10, tcp_nodelay=True)
+        self.state_est_sub = rospy.Subscriber(state_est_topic, Odometry, self.state_est_callback, queue_size=10, tcp_nodelay=True)
+        self.acceleration_est_sub = rospy.Subscriber(acceleration_est_topic, Imu, self.acceleration_est_callback, queue_size=10, tcp_nodelay=True)
+        self.ref_sub = rospy.Subscriber(ref_topic, ReferenceTrajectory, self.ref_callback, queue_size=10, tcp_nodelay=True)
+        self.control_sub = rospy.Subscriber(control_topic, AttitudeTarget, self.control_callback, queue_size=10, tcp_nodelay=True)
+        self.control_gz_sub = rospy.Subscriber(control_gz_topic, ControlCommand, self.control_gz_callback, queue_size=10, tcp_nodelay=True)
+        self.record_sub = rospy.Subscriber(record_topic, Bool, self.record_callback, queue_size=10, tcp_nodelay=True)
 
         # Initialize vectors to store Reference Trajectory
         self.seq_len = None
@@ -302,7 +302,7 @@ class VisualizerWrapper:
         if self.v_act is not None and self.w_act is not None:
             x = self.p_act + self.q_act + self.v_act + self.w_act
             self.x_act = np.append(self.x_act, np.array(x)[np.newaxis, :], axis=0)
-
+    
     def twist_callback(self, msg):
         if not self.record:
             return
@@ -320,7 +320,6 @@ class VisualizerWrapper:
             y = self.p_meas + self.w_meas + self.a_meas
             self.y = np.append(self.y, np.array(y)[np.newaxis, :], axis=0)
         self.t_act = np.append(self.t_act, msg.header.stamp.to_time())
-        print(msg.header.stamp.to_time())
 
     def motor_thrust_callback(self, msg):
         if not self.record:

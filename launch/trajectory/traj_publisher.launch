@@ -20,7 +20,8 @@
             <param name="v_list" value="$(arg trajectory_speeds)"/>
             <param name="mode" value="$(arg flight_mode)"/>
             <param name="plot" value="$(arg plot)"/>
-
+            <param name="environment" value="$(arg env)"/>
+            
             <remap from="reference" to="/gp_mpc/reference"/>
             <remap from="busy" to="/mpc/busy"/>
         </node>
@@ -34,6 +35,7 @@
             <param name="v_list" value="$(arg trajectory_speeds)"/>
             <param name="mode" value="$(arg flight_mode)"/>
             <param name="plot" value="$(arg plot)"/>
+            <param name="environment" value="$(arg env)"/>
 
             <remap from="reference" to="/gp_mpc/reference"/>
             <remap from="busy" to="/mpc/busy"/>
