@@ -20,7 +20,7 @@ from nav_msgs.msg import Odometry
 from sensor_msgs.msg import Imu
 
 
-def pose_parse(pose_msg, env="gazebo"):
+def pose_parse(pose_msg):
     p = [pose_msg.pose.position.x, pose_msg.pose.position.y, pose_msg.pose.position.z]
     q = [pose_msg.pose.orientation.w, pose_msg.pose.orientation.x, pose_msg.pose.orientation.y,
         pose_msg.pose.orientation.z]
@@ -74,7 +74,6 @@ class MocapOdomWrapper:
 
         # Publishers
         self.odom_pub = rospy.Publisher(odom_topic, Odometry, queue_size=10, tcp_nodelay=True)
-        self.pose_msg = None
 
         self.odom_pub_thread = threading.Thread()
         self.odom_pub_thread.start()
@@ -119,7 +118,8 @@ class MocapOdomWrapper:
 
         # Wait for measurements
         while self.p is None or self.v is None or self.w is None:
-            rate.sleep()
+            rospy.sleep(1)
+
         rospy.loginfo("State Measurements Received")
         while not rospy.is_shutdown():
             # Rotate velocity measurement to body frame
@@ -164,7 +164,7 @@ class MocapOdomWrapper:
         :param msg: message from subscriber.
         :type msg: geometry_msgs/Pose
         """
-        self.pose_msg = msg
+
         self.p, self.q = pose_parse(msg)
 
     def twist_callback(self, msg):

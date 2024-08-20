@@ -23,16 +23,6 @@ Node::Node(ros::NodeHandle& nh) {
         ROS_ERROR("FAILED TO CREATE GP_MHE INSTANCE");
         std::exit(EXIT_FAILURE);
     } 
-    if (p_.empty()) {
-        ROS_INFO("Waiting for Position Measurement...");
-        ros::Rate rate(0.5);
-        while (p_.empty() && ros::ok()) {
-            ros::spinOnce();
-            rate.sleep();
-        }
-    }
-
-    ROS_INFO("MHE: %s Loaded in %s", quad_name_.c_str(), environment_.c_str());
 
     // Init vectors
     x_est_.resize(MHE_NX);
@@ -48,6 +38,17 @@ Node::Node(ros::NodeHandle& nh) {
     if (mhe_type_ == "kinematic") {
         acceleration_est_.resize(3);
     }
+    
+    if (p_.empty()) {
+        ROS_INFO("MHE: Waiting for Position Measurement...");
+        ros::Rate rate(1);
+        while (p_.empty() && ros::ok()) {
+            ros::spinOnce();
+            rate.sleep();
+        }
+    }
+
+    ROS_INFO("MHE: %s Loaded in %s", quad_name_.c_str(), environment_.c_str());
 }
 
 

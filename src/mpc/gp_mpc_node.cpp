@@ -24,7 +24,6 @@ Node::Node(ros::NodeHandle& nh) {
         std::exit(EXIT_FAILURE);
     } 
     assert(quad_name_ != "");
-    ROS_INFO("MPC: %s Loaded in %s", quad_name_.c_str(), environment_.c_str());
 
     // initialize vector sizes
     x_.resize(MPC_NX);
@@ -40,6 +39,14 @@ Node::Node(ros::NodeHandle& nh) {
     x_available_ = false;
     // Start thread to publish mpc status
     status_thread_ = std::thread(&Node::run, this);
+
+    ROS_INFO("MPC: Waiting for System States...");
+    ros::Rate rate(1);
+    while (!x_available_ && ros::ok()) {
+        ros::spinOnce();
+        rate.sleep();
+    }
+    ROS_INFO("MPC: %s Loaded in %s", quad_name_.c_str(), environment_.c_str());
 }
 
 /// Destructor
