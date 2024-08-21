@@ -122,7 +122,8 @@ class VisualizerWrapper:
         self.twist_sub = rospy.Subscriber(twist_topic, TwistStamped, self.twist_callback, queue_size=10, tcp_nodelay=True)
         self.imu_sub = rospy.Subscriber(imu_topic, Imu, self.imu_callback, queue_size=10, tcp_nodelay=True)
         self.motor_thrust_sub = rospy.Subscriber(motor_thrust_topic, Actuators, self.motor_thrust_callback, queue_size=10, tcp_nodelay=True)
-        self.odom_gz_sub = rospy.Subscriber(odom_gz_topic, Odometry, self.odom_gz_callback, queue_size=10, tcp_nodelay=True)
+        if self.env == "gazebo":
+            self.odom_gz_sub = rospy.Subscriber(odom_gz_topic, Odometry, self.odom_gz_callback, queue_size=10, tcp_nodelay=True)
         self.state_est_sub = rospy.Subscriber(state_est_topic, Odometry, self.state_est_callback, queue_size=10, tcp_nodelay=True)
         self.acceleration_est_sub = rospy.Subscriber(acceleration_est_topic, Imu, self.acceleration_est_callback, queue_size=10, tcp_nodelay=True)
         self.ref_sub = rospy.Subscriber(ref_topic, ReferenceTrajectory, self.ref_callback, queue_size=10, tcp_nodelay=True)
@@ -135,140 +136,137 @@ class VisualizerWrapper:
     def save_recording_data(self):
         # Remove Exceeding data entry if needed
         # Data Sampled at 100Hz
-        # min_len = np.min((len(self.x_act), len(self.motor_thrusts)))
+        min_len = np.min((len(self.x_act), len(self.motor_thrusts)))
         # self.x_act = self.x_act[:min_len]
         # self.t_act = self.t_act[:min_len] - self.t_act[0]
         # self.t_imu = self.t_imu[:min_len] - self.t_imu[0]
         # self.motor_thrusts = self.motor_thrusts[:min_len]
 
-        # self.w_control = self.w_control[:self.seq_len]
-        # while len(self.w_control) < self.seq_len:
-        #     self.w_control = np.append(self.w_control, self.w_control[-1][np.newaxis], axis=0)
+        self.w_control = self.w_control[:self.seq_len]
+        while len(self.w_control) < self.seq_len:
+            self.w_control = np.append(self.w_control, self.w_control[-1][np.newaxis], axis=0)
         
-        # while len(self.x_act) < self.seq_len * 2:
-        #     self.x_act  = np.append(self.x_act, self.x_act[-1][np.newaxis], axis=0)
-        #     self.t_act  = np.append(self.t_act, self.t_act[-1])
-        #     self.t_imu = np.append(self.t_imu, self.t_imu[-1])
+        while len(self.x_act) < self.seq_len * 2:
+            self.x_act  = np.append(self.x_act, self.x_act[-1][np.newaxis], axis=0)
+            self.t_act  = np.append(self.t_act, self.t_act[-1])
+            self.t_imu = np.append(self.t_imu, self.t_imu[-1])
 
-        # while len(self.motor_thrusts) < self.seq_len * 2:
-        #     self.motor_thrusts = np.append(self.motor_thrusts, self.motor_thrusts[-1][np.newaxis], axis=0)
+        while len(self.motor_thrusts) < self.seq_len * 2:
+            self.motor_thrusts = np.append(self.motor_thrusts, self.motor_thrusts[-1][np.newaxis], axis=0)
 
-        # # Save MPC results
-        # state_in = np.zeros((self.seq_len, self.x_act.shape[1]))
-        # state_out = np.zeros((self.seq_len, self.x_act.shape[1]))
-        # u_in = np.zeros((self.seq_len, 4))
-        # mpc_error = np.zeros_like(state_in)
-        # x_pred_traj = np.zeros_like(state_in)
-        # mpc_t = np.zeros((self.seq_len, 1))
-        # rospy.loginfo("Filling in MPC dataset and saving...")
-        # for i in tqdm(range(self.seq_len)): 
-        #     ii = i * 2
-        #     x0 = self.x_act[ii]
-        #     xf = self.x_act[ii+1]
+        # Save MPC results
+        state_in = np.zeros((self.seq_len, self.x_act.shape[1]))
+        state_out = np.zeros((self.seq_len, self.x_act.shape[1]))
+        u_in = np.zeros((self.seq_len, 4))
+        mpc_error = np.zeros_like(state_in)
+        x_pred_traj = np.zeros_like(state_in)
+        mpc_t = np.zeros((self.seq_len, 1))
+        rospy.loginfo("Filling in MPC dataset and saving...")
+        for i in tqdm(range(self.seq_len)): 
+            ii = i * 2
+            x0 = self.x_act[ii]
+            xf = self.x_act[ii+1]
 
-        #     u = self.motor_thrusts[i]
-        #     _u = np.append(u, [0]) # Considering there is no mass change
+            u = self.motor_thrusts[i]
+            _u = np.append(u, [0]) # Considering there is no mass change
 
-        #     dt = self.t_act[ii+1] - self.t_act[ii]
+            dt = self.t_act[ii+1] - self.t_act[ii]
 
-        #     # Dynamic Model Pred
-        #     x_pred = self.quad_opt.forward_prop(x0, _u, t_horizon=dt)
-        #     x_pred = x_pred[-1, np.newaxis, :]
-        #     x_pred_traj[i] = x_pred
+            # Dynamic Model Pred
+            x_pred = self.quad_opt.forward_prop(x0, _u, t_horizon=dt)
+            x_pred = x_pred[-1, np.newaxis, :]
+            x_pred_traj[i] = x_pred
 
-        #     # MPC Model error
-        #     x_err = xf - x_pred
-        #     if dt == 0:
-        #         mpc_error[i] = 0
-        #     else:
-        #         mpc_error[i] = x_err / dt
+            # MPC Model error
+            x_err = xf - x_pred
+            if dt == 0:
+                mpc_error[i] = 0
+            else:
+                mpc_error[i] = x_err / dt
 
-        #     # Save to array for plots
-        #     state_in[i] = self.x_act[ii] if self.use_groundtruth else self.x_est[ii]
-        #     state_out[i] = self.x_act[ii+1] if self.use_groundtruth else self.x_est[ii+1]
-        #     u_in[i] = u
-        #     mpc_t[i] = self.t_act[ii]
+            # Save to array for plots
+            state_in[i] = self.x_act[ii] if self.use_groundtruth else self.x_est[ii]
+            state_out[i] = self.x_act[ii+1] if self.use_groundtruth else self.x_est[ii+1]
+            u_in[i] = u
+            mpc_t[i] = self.t_act[ii]
 
-        # # Organize arrays to dictionary
-        # mpc_dict = {
-        #     "t": mpc_t,
-        #     "t_ref": self.t_ref,
-        #     "state_in": state_in,
-        #     "state_out": state_out,
-        #     "x" : self.x_act if self.use_groundtruth else self.x_est,
-        #     "x_act": self.x_act,
-        #     "x_ref": self.x_ref,
-        #     "error": mpc_error,
-        #     "x_pred": x_pred_traj,
-        #     "input_in": u_in,
-        #     "w_control": self.w_control,
-        #     "error_pred": self.mpc_gpy_pred,
-        # }
-        # # Save results
-        # with open(os.path.join(self.mpc_dir, "results.pkl"), "wb") as f:
-        #     pickle.dump(mpc_dict, f)
-        # with open(os.path.join(self.mpc_dir, 'meta_data.json'), "w") as f:
-        #     json.dump(self.mpc_meta, f, indent=4)
-        # trajectory_tracking_results(self.mpc_dir, self.t_ref, mpc_t, self.x_ref, state_in,
-        #                             self.u_ref, u_in, mpc_error, w_control=self.w_control, file_type='png')
+        # Organize arrays to dictionary
+        mpc_dict = {
+            "t": mpc_t,
+            "t_ref": self.t_ref,
+            "state_in": state_in,
+            "state_out": state_out,
+            "x" : self.x_act if self.use_groundtruth else self.x_est,
+            "x_act": self.x_act,
+            "x_ref": self.x_ref,
+            "error": mpc_error,
+            "x_pred": x_pred_traj,
+            "input_in": u_in,
+            "w_control": self.w_control,
+            "error_pred": self.mpc_gpy_pred,
+        }
+        # Save results
+        with open(os.path.join(self.mpc_dir, "results.pkl"), "wb") as f:
+            pickle.dump(mpc_dict, f)
+        with open(os.path.join(self.mpc_dir, 'meta_data.json'), "w") as f:
+            json.dump(self.mpc_meta, f, indent=4)
+        trajectory_tracking_results(self.mpc_dir, self.t_ref, mpc_t, self.x_ref, state_in,
+                                    self.u_ref, u_in, mpc_error, w_control=self.w_control, file_type='png')
 
-        # # Check MHE is running and if it is continue to save MHE results
-        # if len(self.x_est) > 0:
-        #     # Remove Exceeding data entry if needed
-        #     min_len = np.min((min_len, len(self.x_est), len(self.y), len(self.accel_est)))
-        #     self.x_est = self.x_est[:min_len]
-        #     self.y = self.y[:min_len]
-        #     self.accel_est = self.accel_est[:min_len]
-        #     self.t_act = self.t_act[:min_len]
-        #     self.t_imu = self.t_imu[:min_len]
-        #     self.x_act = self.x_act[:min_len]
-        #     self.motor_thrusts = self.motor_thrusts[:min_len]
+        # Check MHE is running and if it is continue to save MHE results
+        if len(self.x_est) > 0:
+            # Remove Exceeding data entry if needed
+            min_len = np.min((min_len, len(self.x_est), len(self.y), len(self.accel_est)))
+            self.x_est = self.x_est[:min_len]
+            self.y = self.y[:min_len]
+            self.accel_est = self.accel_est[:min_len]
+            self.t_act = self.t_act[:min_len]
+            self.t_imu = self.t_imu[:min_len]
+            self.x_act = self.x_act[:min_len]
+            self.motor_thrusts = self.motor_thrusts[:min_len]
 
-        #     mhe_error = np.zeros_like(self.x_est)
-        #     a_est_b_traj = np.zeros((len(self.x_est), 3))
-        #     rospy.loginfo("Filling in MHE dataset and saving...")
-        #     g = cs.vertcat(0, 0, -9.81)
-        #     for i in tqdm(range(len(self.x_est))):
-        #         u = self.motor_thrusts[i]
-        #         q = self.x_est[i][3:7]
-        #         q_inv = quaternion_inverse(q)
+            mhe_error = np.zeros_like(self.x_est)
+            a_est_b_traj = np.zeros((len(self.x_est), 3))
+            rospy.loginfo("Filling in MHE dataset and saving...")
+            g = cs.vertcat(0, 0, -9.81)
+            for i in tqdm(range(len(self.x_est))):
+                u = self.motor_thrusts[i]
+                q = self.x_est[i][3:7]
+                q_inv = quaternion_inverse(q)
 
-        #         a_meas = self.y[i][6:9]
-        #         a_meas = np.stack(a_meas + v_dot_q(g, q_inv).T)
+                a_meas = self.y[i][6:9]
+                a_meas = np.stack(a_meas + v_dot_q(g, q_inv).T)
 
-        #         # Model Accel Est
-        #         a_thrust = cs.vertcat(0, 0, u[0] + u[1] + u[2] + u[3] * self.quad.max_thrust / self.quad.mass)
+                # Model Accel Est
+                a_thrust = cs.vertcat(0, 0, u[0] + u[1] + u[2] + u[3] * self.quad.max_thrust / self.quad.mass)
                 
-        #         a_est_b = v_dot_q(v_dot_q(a_thrust, q) + g, q_inv)
-        #         a_est_b = np.squeeze(a_est_b.T)
-        #         a_est_b_traj[i] = a_est_b
+                a_est_b = v_dot_q(v_dot_q(a_thrust, q) + g, q_inv)
+                a_est_b = np.squeeze(a_est_b.T)
+                a_est_b_traj[i] = a_est_b
 
-        #         # MHE Model Error
-        #         a_error = np.concatenate((np.zeros((1, 7)), a_meas - a_est_b, np.zeros((1, 3))), axis=None)
-        #         mhe_error[i] = a_error
+                # MHE Model Error
+                a_error = np.concatenate((np.zeros((1, 7)), a_meas - a_est_b, np.zeros((1, 3))), axis=None)
+                mhe_error[i] = a_error
 
-        #     # Organize arrays to dictionary
-        #     mhe_dict = {
-        #         "t": self.t_imu,
-        #         "x_est": self.x_est,
-        #         "x_act": self.x_act,
-        #         "sensor_meas": self.y,
-        #         "motor_thrusts": self.motor_thrusts,
-        #         "error_pred": self.mhe_gpy_pred,
-        #         "error": mhe_error,
-        #         "a_est_b": a_est_b_traj,
-        #         "accel_est": self.accel_est,
-        #     } 
-        #     # Save results
-        #     with open(os.path.join(self.mhe_dir, "results.pkl"), "wb") as f:
-        #         pickle.dump(mhe_dict, f)
-        #     with open(os.path.join(self.mhe_dir, 'meta_data.json'), "w") as f:
-        #         json.dump(self.mhe_meta, f, indent=4)
-            # state_estimation_results(self.mhe_dir, self.t_act, self.x_act, self.x_est, self.y,
-            #                          mhe_error, self.accel_est, file_type='png')
-        
-        # TODO: x_act and y is different but it saves the same. looks like  
-        
+            # Organize arrays to dictionary
+            mhe_dict = {
+                "t": self.t_imu,
+                "x_est": self.x_est,
+                "x_act": self.x_act,
+                "sensor_meas": self.y,
+                "motor_thrusts": self.motor_thrusts,
+                "error_pred": self.mhe_gpy_pred,
+                "error": mhe_error,
+                "a_est_b": a_est_b_traj,
+                "accel_est": self.accel_est,
+            } 
+            # Save results
+            with open(os.path.join(self.mhe_dir, "results.pkl"), "wb") as f:
+                pickle.dump(mhe_dict, f)
+            with open(os.path.join(self.mhe_dir, 'meta_data.json'), "w") as f:
+                json.dump(self.mhe_meta, f, indent=4)
+            state_estimation_results(self.mhe_dir, self.t_act, self.x_act, self.x_est, self.y,
+                                     mhe_error, self.accel_est, file_type='png')
         print(self.seq_len)
         print(self.x_act.shape)
         print(self.t_act.shape)
@@ -277,15 +275,7 @@ class VisualizerWrapper:
         print(self.t_imu.shape)
         print(self.motor_thrusts.shape)
         print(self.w_control.shape)
-        
-        min_len = np.min((len(self.x_act), len(self.t_act)))
-        self.x_act = self.x_act[:min_len]
-        self.t_act = self.t_act[:min_len] - self.t_act[0]
-        min_len = np.min((len(self.y), len(self.t_imu)))
-        self.y = self.y[:min_len]
-        self.t_imu = self.t_imu[:min_len] - self.t_imu[0]
-        test(self.mhe_dir, self.t_act, self.x_act, self.t_imu, self.y)
-        
+    
         # --- Reset all vectors ---
         # Vectors to store Reference Trajectory
         self.seq_len = None
@@ -373,8 +363,7 @@ class VisualizerWrapper:
         x = p + q + v_w + w
         
         self.x_act = np.append(self.x_act, np.array(x)[np.newaxis, :], axis=0)
-
-        # self.t_act = np.append(self.t_act, msg.header.stamp.to_time())
+        self.t_act = np.append(self.t_act, msg.header.stamp.to_time())
 
     def state_est_callback(self, msg):
         if not self.record:
