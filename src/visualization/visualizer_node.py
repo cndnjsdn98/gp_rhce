@@ -179,10 +179,7 @@ class VisualizerWrapper:
 
             # MPC Model error
             x_err = xf - x_pred
-            if dt == 0:
-                mpc_error[i] = 0
-            else:
-                mpc_error[i] = x_err / dt
+            mpc_error[i] = x_err / dt if dt != 0 else 0
 
             # Save to array for plots
             state_in[i] = self.x_act[ii] if self.use_groundtruth else self.x_est[ii]
