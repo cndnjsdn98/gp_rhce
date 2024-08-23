@@ -313,7 +313,7 @@ void Node::runMPC() {
         next_control.type_mask = 128;
         double thrust = (u_opt_[0] + u_opt_[1] + u_opt_[2] + u_opt_[3]) / 4;
         if (ground_level_) {
-            thrust *= 0.01;
+            thrust *= 0.5;
         } 
         next_control.thrust = thrust;
         control_pub_.publish(next_control);

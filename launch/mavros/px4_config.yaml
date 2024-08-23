@@ -82,7 +82,7 @@ odometry:
 # vision_pose_estimate
 vision_pose:
   tf:
-    listen: true           # enable tf listener (disable topic subscribers)
+    listen: false           # enable tf listener (disable topic subscribers)
     frame_id: "odom"
     child_frame_id: "base_link" #"vision_estimate"
     rate_limit: 10.0

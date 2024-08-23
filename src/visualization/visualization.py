@@ -245,7 +245,8 @@ def trajectory_tracking_results(img_save_dir, t_ref, t_executed, x_ref, x_execut
 
 
 def state_estimation_results(img_save_dir, t_ref, x_act, x_est, y_measured, 
-                             mhe_error, accel_est, error_pred=None, file_type='png'):
+                             mhe_error, accel_est, error_pred=None, file_type='png',
+                             show_error=False, show_dvdt=False):
     plt.switch_backend('Agg')
     SMALL_SIZE = 14
     MEDIUM_SIZE = 18
@@ -366,90 +367,77 @@ def state_estimation_results(img_save_dir, t_ref, x_act, x_est, y_measured,
                 transparent=False, bbox_inches=None, metadata=None)
     plt.close(fig)
 
-    fig, ax = plt.subplots(3, 1, sharex='all', figsize=(13, 14))
-    for i in range(3):
-        ax[i].plot(t_ref, x_est[:, i] - x_act[:, i])
-        tit = 'p_' + labels[i] + ' estimation error'
-        ax[i].set_ylabel(tit)
-        ax[i].grid()
-    ax[0].set_title(r'$p\:[m]$')
-    ax[2].set_xlabel(r'$t [s]$')
-    plt.tight_layout()
-    fig.savefig(img_save_dir + '/position_state_estimation_error.'+file_type, dpi=None, facecolor='w', edgecolor='w',
+    fig = plt.figure(figsize=(13,10))
+    ax = plt.axes(projection='3d')
+    plt.plot(x_est[:, 0], x_est[:, 1], x_est[:, 2], label="estimation", linewidth=0.7)
+    plt.plot(x_act[:, 0], x_act[:, 1], x_act[:, 2,], label="actual", linewidth=0.7)
+    plt.legend()
+    plt.grid()
+    ax.set_xlabel(r'$x [m]$')
+    ax.set_ylabel(r'$y [m]$')
+    ax.set_zlabel(r'$z [m]$')
+    fig.savefig(img_save_dir + '/state_estimation_px_py_pz.'+file_type, dpi=None, facecolor='w', edgecolor='w',
                 orientation='portrait', format=file_type,
                 transparent=False, bbox_inches=None, metadata=None)
     plt.close(fig)
 
-    fig, ax = plt.subplots(3, 1, sharex='all', figsize=(13, 14))
-    for i in range(3):
-        ax[i].plot(t_ref, q_euler_est[:, i] - q_euler_act[:, i])
-        tit = 'q_' + labels[i] + ' estimation error'
-        ax[i].set_ylabel(tit)
-        ax[i].grid()
-    ax[0].set_title(r'$p\:[m]$')
-    ax[2].set_xlabel(r'$t [s]$')
-    plt.tight_layout()
-    fig.savefig(img_save_dir + '/angular_position_state_estimation_error.'+file_type, dpi=None, facecolor='w', edgecolor='w',
-                orientation='portrait', format=file_type,
-                transparent=False, bbox_inches=None, metadata=None)
-    plt.close(fig)
+    if show_error:
+        fig, ax = plt.subplots(3, 1, sharex='all', figsize=(13, 14))
+        for i in range(3):
+            ax[i].plot(t_ref, x_est[:, i] - x_act[:, i])
+            tit = 'p_' + labels[i] + ' estimation error'
+            ax[i].set_ylabel(tit)
+            ax[i].grid()
+        ax[0].set_title(r'$p\:[m]$')
+        ax[2].set_xlabel(r'$t [s]$')
+        plt.tight_layout()
+        fig.savefig(img_save_dir + '/position_state_estimation_error.'+file_type, dpi=None, facecolor='w', edgecolor='w',
+                    orientation='portrait', format=file_type,
+                    transparent=False, bbox_inches=None, metadata=None)
+        plt.close(fig)
 
-    fig, ax = plt.subplots(3, 1, sharex='all', figsize=(13, 14))
-    for i in range(3):
-        ax[i].plot(t_ref, x_est[:, i+7] - x_act[:, i+7])
-        tit = 'v_' + labels[i] + ' estimation error'
-        ax[i].set_ylabel(tit)
-        ax[i].grid()
-    ax[0].set_title(r'$p\:[m]$')
-    ax[2].set_xlabel(r'$t [s]$')
-    plt.tight_layout()
-    fig.savefig(img_save_dir + '/velocity_state_estimation_error.'+file_type, dpi=None, facecolor='w', edgecolor='w',
-                orientation='portrait', format=file_type,
-                transparent=False, bbox_inches=None, metadata=None)
-    plt.close(fig)
+        fig, ax = plt.subplots(3, 1, sharex='all', figsize=(13, 14))
+        for i in range(3):
+            ax[i].plot(t_ref, q_euler_est[:, i] - q_euler_act[:, i])
+            tit = 'q_' + labels[i] + ' estimation error'
+            ax[i].set_ylabel(tit)
+            ax[i].grid()
+        ax[0].set_title(r'$p\:[m]$')
+        ax[2].set_xlabel(r'$t [s]$')
+        plt.tight_layout()
+        fig.savefig(img_save_dir + '/angular_position_state_estimation_error.'+file_type, dpi=None, facecolor='w', edgecolor='w',
+                    orientation='portrait', format=file_type,
+                    transparent=False, bbox_inches=None, metadata=None)
+        plt.close(fig)
 
-    fig, ax = plt.subplots(3, 1, sharex='all', figsize=(13, 14))
-    for i in range(3):
-        ax[i].plot(t_ref, x_est[:, i+10] - x_act[:, i+10])
-        tit = 'w_' + labels[i] + ' estimation error'
-        ax[i].set_ylabel(tit)
-        ax[i].grid()
-    ax[0].set_title(r'$p\:[m]$')
-    ax[2].set_xlabel(r'$t [s]$')
-    plt.tight_layout()
-    fig.savefig(img_save_dir + '/angular_velocity_state_estimation_error.'+file_type, dpi=None, facecolor='w', edgecolor='w',
-                orientation='portrait', format=file_type,
-                transparent=False, bbox_inches=None, metadata=None)
-    plt.close(fig)
+        fig, ax = plt.subplots(3, 1, sharex='all', figsize=(13, 14))
+        for i in range(3):
+            ax[i].plot(t_ref, x_est[:, i+7] - x_act[:, i+7])
+            tit = 'v_' + labels[i] + ' estimation error'
+            ax[i].set_ylabel(tit)
+            ax[i].grid()
+        ax[0].set_title(r'$p\:[m]$')
+        ax[2].set_xlabel(r'$t [s]$')
+        plt.tight_layout()
+        fig.savefig(img_save_dir + '/velocity_state_estimation_error.'+file_type, dpi=None, facecolor='w', edgecolor='w',
+                    orientation='portrait', format=file_type,
+                    transparent=False, bbox_inches=None, metadata=None)
+        plt.close(fig)
 
-    
-    
-    p, q, v_b_executed, w = separate_variables(x_act)
-    v_w_executed =[]
-    for i in range(len(t_ref)):
-        v_w_executed.append(v_dot_q(v_b_executed[i], (q[i])))
-    v_w_executed = np.stack(v_w_executed)
-    a_w_executed = []
-    for i in range(len(t_ref)-1):
-        a_w_executed.append((v_w_executed[i+1, :] - v_w_executed[i, :])/(0.02))
-    a_w_executed.append((v_w_executed[i+1, :] - v_w_executed[i, :])/(0.02))
-    a_w_executed = np.stack(a_w_executed)
+        fig, ax = plt.subplots(3, 1, sharex='all', figsize=(13, 14))
+        for i in range(3):
+            ax[i].plot(t_ref, x_est[:, i+10] - x_act[:, i+10])
+            tit = 'w_' + labels[i] + ' estimation error'
+            ax[i].set_ylabel(tit)
+            ax[i].grid()
+        ax[0].set_title(r'$p\:[m]$')
+        ax[2].set_xlabel(r'$t [s]$')
+        plt.tight_layout()
+        fig.savefig(img_save_dir + '/angular_velocity_state_estimation_error.'+file_type, dpi=None, facecolor='w', edgecolor='w',
+                    orientation='portrait', format=file_type,
+                    transparent=False, bbox_inches=None, metadata=None)
+        plt.close(fig)
 
-    a_b_executed = []
-    for i in range(len(t_ref)):
-        a_b_executed.append(v_dot_q(a_w_executed[i, :], quaternion_inverse(q[i])))
-    a_b_executed = np.stack(a_b_executed)
-
-    a_w_meas = []
-    for i in range(len(t_ref)):
-        a_w_meas.append(v_dot_q(y_measured[i, 6:], (q[i])) - cs.vertcat(0, 0, 9.8))
-    a_w_meas = np.stack(a_w_meas)
-
-    a_b_meas = []
-    for i in range(len(t_ref)):
-        a_b_meas.append(v_dot_q(a_w_meas[i, :], quaternion_inverse(q[i])))
-    a_b_meas = np.stack(a_b_meas)
-    
     fig, ax = plt.subplots(3, 1, sharex='all', figsize=(13, 14))
     for i in range(3):
         p1, = ax[i].plot(t_ref, y_measured[:, i+6], label='measurement', color='C1', zorder=1)
@@ -468,42 +456,6 @@ def state_estimation_results(img_save_dir, t_ref, x_act, x_est, y_measured,
                 transparent=False, bbox_inches=None, metadata=None)
     plt.close(fig)
 
-    fig, ax = plt.subplots(3, 1, sharex='all', figsize=(13, 14))
-    for i in range(3):
-        p1, = ax[i].plot(t_ref, a_b_meas[:, i], label='measurement', color='C0', zorder=1)
-        tit = 'a_' + labels[i] + ' measurement'
-        ax[i].set_ylabel(tit)
-        p2, = ax[i].plot(t_ref, a_b_executed[:, i], label='dv/dt', color='C1', zorder=2)
-        tit = 'a_' + labels[i] + ' executed'
-        lns = [p1, p2]
-        ax[i].legend(handles=lns)
-        ax[i].grid()
-    ax[0].set_title(r'$a\:[m/s^2]$')
-    ax[2].set_xlabel(r'$t [s]$')
-    plt.tight_layout()
-    fig.savefig(img_save_dir + '/linear_acc_body_measurement.'+file_type, dpi=None, facecolor='w', edgecolor='w',
-                orientation='portrait', format=file_type,
-                transparent=False, bbox_inches=None, metadata=None)
-    plt.close(fig)
-
-    fig = plt.figure(figsize=(40, 40))
-    fig, ax = plt.subplots(3, 1, sharex='all', figsize=(13, 14))
-    for i in range(3):
-        p1, = ax[i].plot(t_ref, a_w_meas[:, i], label='acceleration', color='C0', zorder=100000)
-        tit = 'a_' + labels[i] + ' measurement'
-        ax[i].set_ylabel(tit)
-        p2, = ax[i].plot(t_ref, a_w_executed[:, i], label='dv/dt', color='C1')
-        tit = 'a_' + labels[i] + ' executed'
-        lns = [p1, p2]
-        ax[i].legend(handles=lns)
-        ax[i].grid()
-    ax[0].set_title(r'$a\:[m/s^2]$')
-    ax[2].set_xlabel(r'$t [s]$')
-    plt.tight_layout()
-    fig.savefig(img_save_dir + '/linear_acc_world_measurement.'+file_type, dpi=None, facecolor='w', edgecolor='w',
-                orientation='portrait', format=file_type,
-                transparent=False, bbox_inches=None, metadata=None)
-    plt.close(fig)
 
     fig, ax = plt.subplots(3, 1, figsize=(13, 14))
     for i in range(3):
@@ -535,4 +487,67 @@ def state_estimation_results(img_save_dir, t_ref, x_act, x_est, y_measured,
                     orientation='portrait', format=file_type,
                     transparent=False, bbox_inches=None, metadata=None)
         plt.close(fig)   
-    
+
+    if show_dvdt:
+        p, q, v_b_executed, w = separate_variables(x_act)
+        v_w_executed =[]
+        for i in range(len(t_ref)):
+            v_w_executed.append(v_dot_q(v_b_executed[i], (q[i])))
+        v_w_executed = np.stack(v_w_executed)
+        a_w_executed = []
+        for i in range(len(t_ref)-1):
+            a_w_executed.append((v_w_executed[i+1, :] - v_w_executed[i, :])/(0.02))
+        a_w_executed.append((v_w_executed[i+1, :] - v_w_executed[i, :])/(0.02))
+        a_w_executed = np.stack(a_w_executed)
+
+        a_b_executed = []
+        for i in range(len(t_ref)):
+            a_b_executed.append(v_dot_q(a_w_executed[i, :], quaternion_inverse(q[i])))
+        a_b_executed = np.stack(a_b_executed)
+
+        a_w_meas = []
+        for i in range(len(t_ref)):
+            a_w_meas.append(v_dot_q(y_measured[i, 6:], (q[i])) - cs.vertcat(0, 0, 9.8))
+        a_w_meas = np.stack(a_w_meas)
+
+        a_b_meas = []
+        for i in range(len(t_ref)):
+            a_b_meas.append(v_dot_q(a_w_meas[i, :], quaternion_inverse(q[i])))
+        a_b_meas = np.stack(a_b_meas)
+        
+        fig, ax = plt.subplots(3, 1, sharex='all', figsize=(13, 14))
+        for i in range(3):
+            p1, = ax[i].plot(t_ref, a_b_meas[:, i], label='measurement', color='C0', zorder=1)
+            tit = 'a_' + labels[i] + ' measurement'
+            ax[i].set_ylabel(tit)
+            p2, = ax[i].plot(t_ref, a_b_executed[:, i], label='dv/dt', color='C1', zorder=2)
+            tit = 'a_' + labels[i] + ' executed'
+            lns = [p1, p2]
+            ax[i].legend(handles=lns)
+            ax[i].grid()
+        ax[0].set_title(r'$a\:[m/s^2]$')
+        ax[2].set_xlabel(r'$t [s]$')
+        plt.tight_layout()
+        fig.savefig(img_save_dir + '/linear_acc_body_measurement.'+file_type, dpi=None, facecolor='w', edgecolor='w',
+                    orientation='portrait', format=file_type,
+                    transparent=False, bbox_inches=None, metadata=None)
+        plt.close(fig)
+
+        fig = plt.figure(figsize=(40, 40))
+        fig, ax = plt.subplots(3, 1, sharex='all', figsize=(13, 14))
+        for i in range(3):
+            p1, = ax[i].plot(t_ref, a_w_meas[:, i], label='acceleration', color='C0', zorder=100000)
+            tit = 'a_' + labels[i] + ' measurement'
+            ax[i].set_ylabel(tit)
+            p2, = ax[i].plot(t_ref, a_w_executed[:, i], label='dv/dt', color='C1')
+            tit = 'a_' + labels[i] + ' executed'
+            lns = [p1, p2]
+            ax[i].legend(handles=lns)
+            ax[i].grid()
+        ax[0].set_title(r'$a\:[m/s^2]$')
+        ax[2].set_xlabel(r'$t [s]$')
+        plt.tight_layout()
+        fig.savefig(img_save_dir + '/linear_acc_world_measurement.'+file_type, dpi=None, facecolor='w', edgecolor='w',
+                    orientation='portrait', format=file_type,
+                    transparent=False, bbox_inches=None, metadata=None)
+        plt.close(fig)

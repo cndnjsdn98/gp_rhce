@@ -138,8 +138,8 @@ class VisualizerWrapper:
         # Data Sampled at 100Hz
         min_len = np.min((len(self.x_act), len(self.motor_thrusts)))
         # self.x_act = self.x_act[:min_len]
-        # self.t_act = self.t_act[:min_len] - self.t_act[0]
-        # self.t_imu = self.t_imu[:min_len] - self.t_imu[0]
+        self.t_act = self.t_act - self.t_act[0]
+        self.t_imu = self.t_imu - self.t_imu[0]
         # self.motor_thrusts = self.motor_thrusts[:min_len]
 
         self.w_control = self.w_control[:self.seq_len]
@@ -264,15 +264,7 @@ class VisualizerWrapper:
                 json.dump(self.mhe_meta, f, indent=4)
             state_estimation_results(self.mhe_dir, self.t_act, self.x_act, self.x_est, self.y,
                                      mhe_error, self.accel_est, file_type='png')
-        print(self.seq_len)
-        print(self.x_act.shape)
-        print(self.t_act.shape)
-        print(self.x_est.shape)
-        print(self.y.shape)
-        print(self.t_imu.shape)
-        print(self.motor_thrusts.shape)
-        print(self.w_control.shape)
-    
+
         # --- Reset all vectors ---
         # Vectors to store Reference Trajectory
         self.seq_len = None
@@ -316,8 +308,6 @@ class VisualizerWrapper:
             self.x_act = np.append(self.x_act, np.array(x)[np.newaxis, :], axis=0)
         self.t_act = np.append(self.t_act, msg.header.stamp.to_time())
 
-        print("pose: ", msg.header.stamp.to_time() - self.t_act[0])
-
     def twist_callback(self, msg):
         if not self.record:
             return
@@ -335,7 +325,6 @@ class VisualizerWrapper:
             y = self.p_meas + self.w_meas + self.a_meas
             self.y = np.append(self.y, np.array(y)[np.newaxis, :], axis=0)
         self.t_imu = np.append(self.t_imu, msg.header.stamp.to_time())
-        print("imu: ", msg.header.stamp.to_time() - self.t_imu[0])
 
     def motor_thrust_callback(self, msg):
         if not self.record:
