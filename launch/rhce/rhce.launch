@@ -29,7 +29,12 @@
         <!-- MHE -->
         <group ns="gp_mhe">
             <rosparam file="$(find gp_rhce)/config/$(arg env)/gazebo_run.yaml"/>
-            <rosparam file="$(find gp_rhce)/quads/$(arg quad_name)/$(arg quad_name)_mhe.yaml"/>
+            <group if="$(eval arg('mhe_type') == 'kinematic')">
+                <rosparam file="$(find gp_rhce)/quads/$(arg quad_name)/$(arg quad_name)_kmhe.yaml"/>
+            </group>
+            <group if="$(eval arg('mhe_type') == 'dynamic')">
+                <rosparam file="$(find gp_rhce)/quads/$(arg quad_name)/$(arg quad_name)_dmhe.yaml"/>
+            </group>
             <param name="environment" value="$(arg env)"/>
             <param name="quad_name" value="$(arg quad_name)"/>
             <param name="t_mhe" value="$(arg t_mhe)"/>
@@ -58,7 +63,12 @@
         <!-- MHE -->
         <group ns="gp_mhe">
             <rosparam file="$(find gp_rhce)/config/$(arg env)/arena_run.yaml"/>
-            <rosparam file="$(find gp_rhce)/quads/$(arg quad_name)/$(arg quad_name)_mhe.yaml"/>
+            <group if="$(eval arg('mhe_type') == 'kinematic')">
+                <rosparam file="$(find gp_rhce)/quads/$(arg quad_name)/$(arg quad_name)_kmhe.yaml"/>
+            </group>
+            <group if="$(eval arg('mhe_type') == 'dynamic')">
+                <rosparam file="$(find gp_rhce)/quads/$(arg quad_name)/$(arg quad_name)_dmhe.yaml"/>
+            </group>
             <param name="environment" value="$(arg env)"/>
             <param name="quad_name" value="$(arg quad_name)"/>
             <param name="t_mhe" value="$(arg t_mhe)"/>

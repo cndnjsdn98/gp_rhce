@@ -339,8 +339,8 @@ def state_estimation_results(img_save_dir, t_ref, x_act, x_est, y_measured,
     fig, ax = plt.subplots(3, 1, sharex='all', figsize=(13, 14))
     for i in range(3):
         ax[i].plot(t_ref, x_est[:, i+10], label="estimated", zorder=3)
-        ax[i].plot(t_ref, x_act[:, i+10], label="actual", zorder=2)
-        ax[i].plot(t_ref, y_measured[:, i+3], label="measurement", zorder=1)
+        ax[i].plot(t_ref, x_act[:, i+10], label="actual", zorder=1)
+        ax[i].plot(t_ref, y_measured[:, i+3], label="measurement", zorder=2)
         tit = 'w_' + labels[i] + ' estimation error'
         ax[i].set_ylabel(tit)
         ax[i].legend()

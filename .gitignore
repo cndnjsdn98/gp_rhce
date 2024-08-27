@@ -62,3 +62,5 @@ results/*
 acados_ocp/
 acados_ocp/mpc/
 acados_ocp/mhe/
+
+**/tuning_notes.md

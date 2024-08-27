@@ -7,7 +7,7 @@ for Quadrocopter Control by Jian Wang et al.) -->
   <xacro:property name="rotor_velocity_slowdown_sim" value="10" />
   <xacro:property name="use_mesh_file" value="true" />
   <xacro:property name="mesh_file" value="package://rotors_description/meshes/hummingbird.dae" />
-  <xacro:property name="mass" value="0.795" /> <!-- [kg] -->
+  <xacro:property name="mass" value="0.826" /> <!-- [kg] -->
   <xacro:property name="body_width" value="0.09" /> <!-- [m] -->
   <xacro:property name="body_height" value="0.09" /> <!-- [m] -->
   <xacro:property name="mass_rotor" value="0.006" /> <!-- [kg] -->
@@ -18,7 +18,7 @@ for Quadrocopter Control by Jian Wang et al.) -->
   <xacro:property name="radius_rotor" value="0.127" /> <!-- [m] -->
   <xacro:property name="motor_constant" value="1.56252e-06" /> <!-- [kg m/s^2] kf-->
   <xacro:property name="moment_constant" value="0.022" /> <!-- [Nm/N] 0.016 ct -->
-  <xacro:property name="max_thrust" value="8.7" /> <!-- [N] Max thrust of individual rotor-->
+  <xacro:property name="max_thrust" value="15.75" /> <!-- [N] Max thrust of individual rotor-->
   <xacro:property name="time_constant_up" value="0.033" /> <!-- [s] -->
   <xacro:property name="time_constant_down" value="0.033" /> <!-- [s] -->
   <xacro:property name="max_rot_velocity" value="2800" /> <!-- 838 [rad/s] -->
@@ -27,7 +27,9 @@ for Quadrocopter Control by Jian Wang et al.) -->
 
   <!-- Property Blocks -->
   <xacro:property name="body_inertia">
-    <inertia ixx="0.002862812" ixy="0.0" ixz="0.0" iyy="0.002408987	" iyz="0.0" izz="0.003447986" /> <!-- [kg m^2] [kg m^2] [kg m^2] [kg m^2] [kg m^2] [kg m^2] -->
+    <!-- <inertia ixx="0.002862812" ixy="0.0" ixz="0.0" iyy="0.002408987	" iyz="0.0" izz="0.003447986" /> [kg m^2] [kg m^2] [kg m^2] [kg m^2] [kg m^2] [kg m^2] -->
+    <inertia ixx="0.002969217" ixy="0.0" ixz="0.0" iyy="0.002530917	" iyz="0.0" izz="0.003484798" /> <!-- [kg m^2] [kg m^2] [kg m^2] [kg m^2] [kg m^2] [kg m^2] -->
+    <!-- <inertia ixx="0.002880284" ixy="0.0" ixz="0.0" iyy="0.002434335" iyz="0.0" izz="0.003471636" /> [kg m^2] [kg m^2] [kg m^2] [kg m^2] [kg m^2] [kg m^2] -->
   </xacro:property>
 
   <!-- inertia of a single rotor, assuming it is a cuboid. Height=3mm, width=15mm -->

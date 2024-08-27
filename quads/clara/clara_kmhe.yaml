@@ -1,6 +1,6 @@
 # MHE System Noise
 w_p: 0.001
-w_q: 0.01
+w_q: 0.001
 w_v: 0.005
 w_r: 0.5
 w_a: 0.005
@@ -9,7 +9,7 @@ w_d: 0.0001
 w_m: 0.0001
 
 # MHE Measurement Noise
-v_p: 0.002
-v_r: 0.000001
+v_p: 0.001
+v_r: 0.001
 v_a: 0.00001
 v_d: 0.0001
