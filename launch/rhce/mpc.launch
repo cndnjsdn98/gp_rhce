@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
 <launch>
     <!-- Quad Name -->
-    <arg name="quad_name" default="clark"/>
+    <arg name="quad_name" default=""/>
     <!-- "gazebo" or "arena" to indicate the environment-->
-    <arg name="env" default="arena"/>
+    <arg name="env" default=""/>
 
     <!-- MPC Parameters -->
     <arg name="t_mpc" default="1"/>

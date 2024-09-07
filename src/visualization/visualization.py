@@ -244,8 +244,8 @@ def trajectory_tracking_results(img_save_dir, t_ref, t_executed, x_ref, x_execut
     plt.close(fig)
 
 
-def state_estimation_results(img_save_dir, t_ref, x_act, x_est, y_measured, 
-                             mhe_error, accel_est, error_pred=None, file_type='png',
+def state_estimation_results(img_save_dir, t_act, x_act, t_est, x_est, t_meas, y_measured, 
+                             mhe_error, t_acc_est, accel_est, error_pred=None, file_type='png',
                              show_error=False, show_dvdt=False):
     plt.switch_backend('Agg')
     SMALL_SIZE = 14
@@ -264,9 +264,9 @@ def state_estimation_results(img_save_dir, t_ref, x_act, x_est, y_measured,
 
     fig, ax = plt.subplots(3, 1, sharex='all', figsize=(13, 14))
     for i in range(3):
-        ax[i].plot(t_ref, x_est[:, i], label="estimated", zorder=3)
-        ax[i].plot(t_ref, x_act[:, i], label="actual", zorder=2)
-        ax[i].plot(t_ref, y_measured[:, i], label="measurement", zorder=1)
+        ax[i].plot(t_est, x_est[:, i], label="estimated", zorder=3)
+        ax[i].plot(t_act, x_act[:, i], label="actual", zorder=2)
+        ax[i].plot(t_meas, y_measured[:, i], label="measurement", zorder=1)
         tit = 'P_' + labels[i]
         ax[i].set_ylabel(tit)
         ax[i].legend()
@@ -289,8 +289,8 @@ def state_estimation_results(img_save_dir, t_ref, x_act, x_est, y_measured,
     q_euler_act[:, 2] = np.rad2deg(unwrap(q_euler_act[:, 2]))
     fig, ax = plt.subplots(3, 1, sharex='all', figsize=(13, 14))
     for i in range(3):
-        ax[i].plot(t_ref, q_euler_est[:, i], label="estimated", zorder=3)
-        ax[i].plot(t_ref, q_euler_act[:, i], label="actual", zorder=2)
+        ax[i].plot(t_est, q_euler_est[:, i], label="estimated", zorder=3)
+        ax[i].plot(t_act, q_euler_act[:, i], label="actual", zorder=2)
         tit = 'theta_' + labels[i] + ' estimation'
         ax[i].set_ylabel(tit)
         ax[i].legend()
@@ -306,8 +306,8 @@ def state_estimation_results(img_save_dir, t_ref, x_act, x_est, y_measured,
     quart_labels = ['w', 'x', 'y', 'z']
     fig, ax = plt.subplots(4, 1, sharex='all', figsize=(13, 14))
     for i in range(4):
-        ax[i].plot(t_ref, x_est[:, i+3], label="estimated", zorder=3)
-        ax[i].plot(t_ref, x_act[:, i+3], label="actual", zorder=2)
+        ax[i].plot(t_est, x_est[:, i+3], label="estimated", zorder=3)
+        ax[i].plot(t_act, x_act[:, i+3], label="actual", zorder=2)
         tit = 'q' + quart_labels[i] + ' estimation'
         ax[i].set_ylabel(tit)
         ax[i].legend()
@@ -322,8 +322,8 @@ def state_estimation_results(img_save_dir, t_ref, x_act, x_est, y_measured,
     
     fig, ax = plt.subplots(3, 1, sharex='all', figsize=(13, 14))
     for i in range(3):
-        ax[i].plot(t_ref, x_est[:, i+7], label="estimated", zorder=3)
-        ax[i].plot(t_ref, x_act[:, i+7], label="actual", zorder=2)
+        ax[i].plot(t_est, x_est[:, i+7], label="estimated", zorder=3)
+        ax[i].plot(t_act, x_act[:, i+7], label="actual", zorder=2)
         tit = 'v_' + labels[i] + ' estimation error'
         ax[i].set_ylabel(tit)
         ax[i].legend()
@@ -338,9 +338,9 @@ def state_estimation_results(img_save_dir, t_ref, x_act, x_est, y_measured,
 
     fig, ax = plt.subplots(3, 1, sharex='all', figsize=(13, 14))
     for i in range(3):
-        ax[i].plot(t_ref, x_est[:, i+10], label="estimated", zorder=3)
-        ax[i].plot(t_ref, x_act[:, i+10], label="actual", zorder=1)
-        ax[i].plot(t_ref, y_measured[:, i+3], label="measurement", zorder=2)
+        ax[i].plot(t_est, x_est[:, i+10], label="estimated", zorder=3)
+        ax[i].plot(t_act, x_act[:, i+10], label="actual", zorder=1)
+        ax[i].plot(t_meas, y_measured[:, i+3], label="measurement", zorder=2)
         tit = 'w_' + labels[i] + ' estimation error'
         ax[i].set_ylabel(tit)
         ax[i].legend()
@@ -384,7 +384,7 @@ def state_estimation_results(img_save_dir, t_ref, x_act, x_est, y_measured,
     if show_error:
         fig, ax = plt.subplots(3, 1, sharex='all', figsize=(13, 14))
         for i in range(3):
-            ax[i].plot(t_ref, x_est[:, i] - x_act[:, i])
+            ax[i].plot(t_est, x_est[:, i] - x_act[:, i])
             tit = 'p_' + labels[i] + ' estimation error'
             ax[i].set_ylabel(tit)
             ax[i].grid()
@@ -398,7 +398,7 @@ def state_estimation_results(img_save_dir, t_ref, x_act, x_est, y_measured,
 
         fig, ax = plt.subplots(3, 1, sharex='all', figsize=(13, 14))
         for i in range(3):
-            ax[i].plot(t_ref, q_euler_est[:, i] - q_euler_act[:, i])
+            ax[i].plot(t_est, q_euler_est[:, i] - q_euler_act[:, i])
             tit = 'q_' + labels[i] + ' estimation error'
             ax[i].set_ylabel(tit)
             ax[i].grid()
@@ -412,7 +412,7 @@ def state_estimation_results(img_save_dir, t_ref, x_act, x_est, y_measured,
 
         fig, ax = plt.subplots(3, 1, sharex='all', figsize=(13, 14))
         for i in range(3):
-            ax[i].plot(t_ref, x_est[:, i+7] - x_act[:, i+7])
+            ax[i].plot(t_est, x_est[:, i+7] - x_act[:, i+7])
             tit = 'v_' + labels[i] + ' estimation error'
             ax[i].set_ylabel(tit)
             ax[i].grid()
@@ -426,7 +426,7 @@ def state_estimation_results(img_save_dir, t_ref, x_act, x_est, y_measured,
 
         fig, ax = plt.subplots(3, 1, sharex='all', figsize=(13, 14))
         for i in range(3):
-            ax[i].plot(t_ref, x_est[:, i+10] - x_act[:, i+10])
+            ax[i].plot(t_est, x_est[:, i+10] - x_act[:, i+10])
             tit = 'w_' + labels[i] + ' estimation error'
             ax[i].set_ylabel(tit)
             ax[i].grid()
@@ -440,9 +440,9 @@ def state_estimation_results(img_save_dir, t_ref, x_act, x_est, y_measured,
 
     fig, ax = plt.subplots(3, 1, sharex='all', figsize=(13, 14))
     for i in range(3):
-        p1, = ax[i].plot(t_ref, y_measured[:, i+6], label='measurement', color='C1', zorder=1)
+        p1, = ax[i].plot(t_meas, y_measured[:, i+6], label='measurement', color='C1', zorder=1)
         if accel_est is not None:
-            p2, = ax[i].plot(t_ref, accel_est[:, i], label='mhe est', color='C0', zorder=2)
+            p2, = ax[i].plot(t_acc_est, accel_est[:, i], label='mhe est', color='C0', zorder=2)
         tit = 'a_' + labels[i] + ' measurement'
         # lns = [p2, p1]
         ax[i].legend()
@@ -474,8 +474,8 @@ def state_estimation_results(img_save_dir, t_ref, x_act, x_est, y_measured,
     if error_pred is not None:
         fig, ax = plt.subplots(3, 1, figsize=(13, 14))
         for i in range(3):
-            ax[i].plot(t_ref, error_pred[:, i], label="est")
-            ax[i].plot(t_ref, mhe_error[:, i+7], label="act")
+            ax[i].plot(t_est, error_pred[:, i], label="est")
+            ax[i].plot(t_act, mhe_error[:, i+7], label="act")
             tit = 'a_' + labels[i] + ' estimated model error'
             ax[i].set_ylabel(tit)
             ax[i].grid()
@@ -491,36 +491,36 @@ def state_estimation_results(img_save_dir, t_ref, x_act, x_est, y_measured,
     if show_dvdt:
         p, q, v_b_executed, w = separate_variables(x_act)
         v_w_executed =[]
-        for i in range(len(t_ref)):
+        for i in range(len(t_act)):
             v_w_executed.append(v_dot_q(v_b_executed[i], (q[i])))
         v_w_executed = np.stack(v_w_executed)
         a_w_executed = []
-        for i in range(len(t_ref)-1):
+        for i in range(len(t_act)-1):
             a_w_executed.append((v_w_executed[i+1, :] - v_w_executed[i, :])/(0.02))
         a_w_executed.append((v_w_executed[i+1, :] - v_w_executed[i, :])/(0.02))
         a_w_executed = np.stack(a_w_executed)
 
         a_b_executed = []
-        for i in range(len(t_ref)):
+        for i in range(len(t_act)):
             a_b_executed.append(v_dot_q(a_w_executed[i, :], quaternion_inverse(q[i])))
         a_b_executed = np.stack(a_b_executed)
 
         a_w_meas = []
-        for i in range(len(t_ref)):
+        for i in range(len(t_meas)):
             a_w_meas.append(v_dot_q(y_measured[i, 6:], (q[i])) - cs.vertcat(0, 0, 9.8))
         a_w_meas = np.stack(a_w_meas)
 
         a_b_meas = []
-        for i in range(len(t_ref)):
+        for i in range(len(t_meas)):
             a_b_meas.append(v_dot_q(a_w_meas[i, :], quaternion_inverse(q[i])))
         a_b_meas = np.stack(a_b_meas)
         
         fig, ax = plt.subplots(3, 1, sharex='all', figsize=(13, 14))
         for i in range(3):
-            p1, = ax[i].plot(t_ref, a_b_meas[:, i], label='measurement', color='C0', zorder=1)
+            p1, = ax[i].plot(t_meas, a_b_meas[:, i], label='measurement', color='C0', zorder=1)
             tit = 'a_' + labels[i] + ' measurement'
             ax[i].set_ylabel(tit)
-            p2, = ax[i].plot(t_ref, a_b_executed[:, i], label='dv/dt', color='C1', zorder=2)
+            p2, = ax[i].plot(t_act, a_b_executed[:, i], label='dv/dt', color='C1', zorder=2)
             tit = 'a_' + labels[i] + ' executed'
             lns = [p1, p2]
             ax[i].legend(handles=lns)
@@ -536,10 +536,10 @@ def state_estimation_results(img_save_dir, t_ref, x_act, x_est, y_measured,
         fig = plt.figure(figsize=(40, 40))
         fig, ax = plt.subplots(3, 1, sharex='all', figsize=(13, 14))
         for i in range(3):
-            p1, = ax[i].plot(t_ref, a_w_meas[:, i], label='acceleration', color='C0', zorder=100000)
+            p1, = ax[i].plot(t_meas, a_w_meas[:, i], label='acceleration', color='C0', zorder=100000)
             tit = 'a_' + labels[i] + ' measurement'
             ax[i].set_ylabel(tit)
-            p2, = ax[i].plot(t_ref, a_w_executed[:, i], label='dv/dt', color='C1')
+            p2, = ax[i].plot(t_act, a_w_executed[:, i], label='dv/dt', color='C1')
             tit = 'a_' + labels[i] + ' executed'
             lns = [p1, p2]
             ax[i].legend(handles=lns)

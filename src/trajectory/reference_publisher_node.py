@@ -14,7 +14,7 @@ this program. If not, see <http://www.gnu.org/licenses/>.
 
 from std_msgs.msg import Bool
 from ros_gp_rhce.msg import ReferenceTrajectory
-from src.utils.quad import custom_quad_param_loader
+from src.quad_opt.quad import custom_quad_param_loader
 from src.trajectory.trajectories import loop_trajectory, random_trajectory, lemniscate_trajectory, updown_trajectory
 import numpy as np
 import rospy
@@ -30,7 +30,8 @@ class ReferenceGenerator:
 
         plot = rospy.get_param('~plot', default=True)
 
-        quad_name = rospy.get_param('~quad_name', default='clark')
+        quad_name = rospy.get_param('~quad_name', default=None)
+        assert quad_name != None
         quad = custom_quad_param_loader(quad_name)
 
         # Configuration for random flight mode

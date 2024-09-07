@@ -21,7 +21,7 @@ from acados_template import AcadosOcp, AcadosOcpSolver
 import rospy
 from scipy.linalg import block_diag
 
-from src.utils.quad import custom_quad_param_loader
+from src.quad_opt.quad import custom_quad_param_loader
 from src.quad_opt.quad_optimizer import QuadOptimizer
 
 class QuadOptimizerMHE(QuadOptimizer):
@@ -223,13 +223,19 @@ class QuadOptimizerMHE(QuadOptimizer):
             ocp_mhe.constraints.lbx_0 = self.param_lbx
             ocp_mhe.constraints.ubx_0 = self.param_ubx
             ocp_mhe.constraints.idxbx_0 = np.array([self.state_dim])
-
+        
+        # Quaternion normalization Constraint
+        eps = 1e-6
+        ocp_mhe.constraints.nh = 1
+        ocp_mhe.constraints.lh = np.array([1 - eps])
+        ocp_mhe.constraints.uh = np.array([1 + eps])
+        
         # Solver options
         ocp_mhe.solver_options.qp_solver = 'PARTIAL_CONDENSING_HPIPM'
         ocp_mhe.solver_options.hessian_approx = 'GAUSS_NEWTON'
         ocp_mhe.solver_options.integrator_type = 'ERK'
         ocp_mhe.solver_options.print_level = 0
-        ocp_mhe.solver_options.nlp_solver_type = 'SQP_RTI' if solver_options is None else solver_options["solver_type"]
+        ocp_mhe.solver_options.nlp_solver_type = 'SQP' if solver_options is None else solver_options["solver_type"]
         ocp_mhe.solver_options.qp_solver_warm_start = 1 # Warm Start
 
         # Path to where code will be exported

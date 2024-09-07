@@ -40,6 +40,12 @@ def custom_quad_param_loader(quad_name):
     quad.c = float(attrib['moment_constant'])
     quad.rotor_drag_coeff = float(attrib["rotor_drag_coefficient"])
 
+    # Input constraints
+    if 'max_input_value' in attrib.keys():
+        quad.max_input_value = float(attrib['max_input_value'])  # Motors at full thrust
+    if 'min_input_value' in attrib.keys():
+        quad.min_input_value = float(attrib['min_input_value'])  # Motors turned off
+
     # x configuration
     if quad_name != "hummingbird":
         dx = float(attrib['rotor_dx'])

@@ -115,25 +115,25 @@ void Node::initLaunchParameters(ros::NodeHandle& nh) {
 
 void Node::initSubscribers(ros::NodeHandle& nh) {
     ref_sub_ = nh.subscribe<gp_rhce::ReferenceTrajectory> (
-        ref_topic_, 10, &Node::referenceCallback, this);
+        ref_topic_, 5, &Node::referenceCallback, this);
     if (use_groundtruth_) {
         state_est_sub_ = nh.subscribe<nav_msgs::Odometry> (
-            odom_topic_, 10, &Node::stateEstCallback, this);
+            odom_topic_, 5, &Node::stateEstCallback, this);
     } else {
         state_est_sub_ = nh.subscribe<nav_msgs::Odometry> (
-            state_est_topic_, 10, &Node::stateEstCallback, this);
+            state_est_topic_, 5, &Node::stateEstCallback, this);
     }
     land_sub_ = nh.subscribe<std_msgs::Bool> (
-        land_topic_, 10, &Node::landCallback, this);
+        land_topic_, 5, &Node::landCallback, this);
 }
 
 void Node::initPublishers(ros::NodeHandle& nh) {
-    control_pub_ = nh.advertise<mavros_msgs::AttitudeTarget> (control_topic_, 10, true);
-    motor_thrust_pub_ = nh.advertise<mav_msgs::Actuators> (motor_thrust_topic_, 10, true);
-    record_pub_ = nh.advertise<std_msgs::Bool> (record_topic_, 10, true); 
-    status_pub_ = nh.advertise<std_msgs::Bool> (status_topic_, 10, true);
+    control_pub_ = nh.advertise<mavros_msgs::AttitudeTarget> (control_topic_, 5, true);
+    motor_thrust_pub_ = nh.advertise<mav_msgs::Actuators> (motor_thrust_topic_, 5, true);
+    record_pub_ = nh.advertise<std_msgs::Bool> (record_topic_, 5, true); 
+    status_pub_ = nh.advertise<std_msgs::Bool> (status_topic_, 5, true);
     // Gazebo Specific Publisher
-    control_gz_pub_ = nh.advertise<quadrotor_msgs::ControlCommand> (control_gz_topic_, 10, true);
+    control_gz_pub_ = nh.advertise<quadrotor_msgs::ControlCommand> (control_gz_topic_, 1, true);
 }
 
 void Node::initRosService(ros::NodeHandle& nh) {
@@ -215,10 +215,10 @@ void Node::stateEstCallback(const nav_msgs::Odometry::ConstPtr& msg) {
         // If its Gazebo transform v_B to v_W
         // Load as Eigen to perform Rotation
         Eigen::Quaterniond q_eig(msg->pose.pose.orientation.w, msg->pose.pose.orientation.x,
-                            msg->pose.pose.orientation.y, msg->pose.pose.orientation.z);
+                                 msg->pose.pose.orientation.y, msg->pose.pose.orientation.z);
         Eigen::Vector3d v_eig(msg->twist.twist.linear.x, 
-                        msg->twist.twist.linear.y, 
-                        msg->twist.twist.linear.z);
+                              msg->twist.twist.linear.y, 
+                              msg->twist.twist.linear.z);
         // Apply rotation to get velocity in world frame
         v_eig = q_eig * v_eig;
         // Save to std::vector
@@ -400,7 +400,7 @@ void Node::setReferenceTrajectory() {
         for (auto& row: x_ref) {
             std::copy(x_ref_prov_.begin(), x_ref_prov_.end(), row.begin());
         }
-        // Fill u_ref with u_ref_prov_x_available_
+        // Fill u_ref with u_ref_prov_
         for (auto& row: u_ref) {
             std::copy(u_ref_prov_.begin(), u_ref_prov_.end(), row.begin());
         }

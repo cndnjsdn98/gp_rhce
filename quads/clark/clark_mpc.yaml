@@ -1,6 +1,6 @@
 # MPC Costs
-q_p: 35
-q_q: 25
+q_p: 30
+q_q: 20
 q_v: 10
 q_r: 10
 qt_factor: 0

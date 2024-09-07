@@ -24,7 +24,7 @@ GP_MHE::GP_MHE(std::string& mhe_type) {
     if (status_) {
         throw std::runtime_error("MHE_acados_create() failed with status: " + std::to_string(status_));
     }
-
+    
     nlp_config_ = mhe_acados_get_nlp_config(acados_ocp_capsule_);
     nlp_dims_ = mhe_acados_get_nlp_dims(acados_ocp_capsule_);
     nlp_in_ = mhe_acados_get_nlp_in(acados_ocp_capsule_);
@@ -39,6 +39,11 @@ GP_MHE::GP_MHE(std::string& mhe_type) {
     } else if (mhe_type_ == "dynamic") {
         x0_bar_ = {0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0};
     }
+
+    for (int i = 0; i < MHE_N; ++i ) {
+        ocp_nlp_out_set(nlp_config_, nlp_dims_, nlp_out_, i, "x", static_cast<void*>(x0_bar_.data()));  
+    }
+
     // x0_bar_.resize(MHE_NX);
     yref_0_.resize(NY0);
     yref_.resize(NY);

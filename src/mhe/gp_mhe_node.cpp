@@ -26,6 +26,7 @@ Node::Node(ros::NodeHandle& nh) {
 
     // Init vectors
     x_est_.resize(MHE_NX);
+    x_est_[IDX_Q_W] = 1;
     p_.reserve(N_POSITION_STATES);
     w_.reserve(N_RATE_STATES);
     a_.reserve(N_ACCEL_STATES);
@@ -40,7 +41,7 @@ Node::Node(ros::NodeHandle& nh) {
     }
     
     if (p_.empty()) {
-        ROS_INFO("MHE: Waiting for Position Measurement...");
+        ROS_INFO("MHE: Waiting for Sensor Measurement...");
         ros::Rate rate(1);
         while (p_.empty() && ros::ok()) {
             ros::spinOnce();
@@ -89,31 +90,31 @@ void Node::initSubscribers(ros::NodeHandle& nh) {
     if (environment_ == "gazebo") {
         // Gazebo specific Subscribers
         odom_gz_sub_ = nh.subscribe<nav_msgs::Odometry> (
-            odom_gz_topic_, 10, &Node::odomGzCallback, this);
+            odom_gz_topic_, 5, &Node::odomGzCallback, this);
     }
     // Init Subscribers
     motor_thrust_sub_ = nh.subscribe<mav_msgs::Actuators> (
-        motor_thrust_topic_, 10, &Node::motorThrustCallback, this);
+        motor_thrust_topic_, 5, &Node::motorThrustCallback, this);
     pose_sub_ = nh.subscribe<geometry_msgs::PoseStamped> (
-        pose_topic_, 10, &Node::poseCallback, this);
+        pose_topic_, 5, &Node::poseCallback, this);
     record_sub_ = nh.subscribe<std_msgs::Bool> (
-        record_topic_, 10, &Node::recordMheCallback, this);
+        record_topic_, 5, &Node::recordMheCallback, this);
     imu_sub_ = nh.subscribe<sensor_msgs::Imu> (
-            imu_topic_, 10, &Node::imuCallback, this);
+            imu_topic_, 5, &Node::imuCallback, this);
     
 }
 
 void Node::initPublishers(ros::NodeHandle& nh) {
-    acceleration_est_pub_ = nh.advertise<sensor_msgs::Imu> (acceleration_est_topic_, 10, true);
-    state_est_pub_ = nh.advertise<nav_msgs::Odometry> (state_est_topic_, 10, true);
+    acceleration_est_pub_ = nh.advertise<sensor_msgs::Imu> (acceleration_est_topic_, 5, true);
+    state_est_pub_ = nh.advertise<nav_msgs::Odometry> (state_est_topic_, 5, true);
 }
 
 
 void Node::imuCallback(const sensor_msgs::Imu::ConstPtr& msg) {
-    // if (p_.empty()) {
-    //     ROS_WARN("Position measurement not received yet. Skipping time step...");
-    //     return;
-    // } 
+    if (p_.empty()) {
+        // ROS_WARN("Position measurement not received yet. Skipping time step...");
+        return;
+    } 
     if (mhe_type_ == "dynamic" && u_.empty()) {
         ROS_WARN("Motor Thrusts not received yet. Skipping time step...");
         return;

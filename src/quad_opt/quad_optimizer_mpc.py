@@ -21,7 +21,7 @@ import numpy as np
 import threading
 import rospy
 
-from src.utils.quad import custom_quad_param_loader
+from src.quad_opt.quad import custom_quad_param_loader
 from acados_template import AcadosOcp, AcadosOcpSolver
 from src.quad_opt.quad_optimizer import QuadOptimizer
 
@@ -197,6 +197,7 @@ def main():
 
     # Load Quad Instance
     quad = custom_quad_param_loader(quad_name)
+    # Parameters needed for gz control commands
     rospy.set_param('quad_max_thrust', quad.max_thrust)
     rospy.set_param('quad_mass', quad.mass)
 

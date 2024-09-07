@@ -18,6 +18,7 @@ import threading
 from geometry_msgs.msg import PoseStamped, Point, Quaternion, TwistStamped, Vector3
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import Imu
+from collections import deque
 
 
 def pose_parse(pose_msg):
@@ -86,6 +87,10 @@ class MocapOdomWrapper:
         self.p, self.q, self.v, self.w = None, None, None, None
         
         mocap_hz = 100
+
+        # Check IMU Rate
+        self.rate_deque = deque(maxlen=50)
+        self.imu_rate = 100 # hz
 
         # Define the state-space model
         A = np.eye(13)  # state transition matrix
@@ -184,6 +189,14 @@ class MocapOdomWrapper:
         """
         self.w, _ = imu_parse(msg)
         # _, _ = imu_parse(msg)
+
+        self.rate_deque.append(msg.header.stamp.to_time())
+
+        if len(self.rate_deque) > 50:
+            duration = self.rate_deque[-1] - self.rate_deque[0]
+            rate = len(self.rate_deque) / duration
+            if (self.imu_rate - rate)**2 > 10:
+                rospy.logerr("Current Rate {:.2f} Hz".format(rate))
 
     def command_callback(self, msg):
         self.motor_speeds = tuple(thrust/self.quad.max_thrust for thrust in control_cmd_parse(msg))

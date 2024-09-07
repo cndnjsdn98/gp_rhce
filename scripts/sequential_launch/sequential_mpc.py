@@ -18,7 +18,7 @@ def main():
         if model_gen_node.returncode == 0:
             rospy.loginfo("MPC Model Compilation completed successfully. Launching gp_mpc node...")
         else:
-            rospy.logerr("MP Model Compilation failed with return code %d", model_gen_node.returncode)
+            rospy.logerr("MPC Model Compilation failed with return code %d", model_gen_node.returncode)
             return
 
     time.sleep(3)

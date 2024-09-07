@@ -21,7 +21,7 @@ from gp_rhce.msg import ReferenceTrajectory
 from src.quad_opt.quad_optimizer import QuadOptimizer
 from src.utils.utils import v_dot_q, quaternion_inverse, safe_mkdir_recursive
 from src.visualization.visualization import trajectory_tracking_results, state_estimation_results, test
-from src.utils.quad import custom_quad_param_loader
+from src.quad_opt.quad import custom_quad_param_loader
 
 class VisualizerWrapper:
     def __init__(self):
@@ -84,6 +84,8 @@ class VisualizerWrapper:
         # Initialize vectors to store Tracking and Estimation Results
         self.t_act = np.zeros((0, 1))
         self.t_imu = np.zeros((0, 1))
+        self.t_est = np.zeros((0, 1))
+        self.t_acc_est = np.zeros((0, 1))
         self.x_act = np.zeros((0, 13))
         self.x_est = np.zeros((0, 13))
         self.y = np.zeros((0, 9))
@@ -107,7 +109,7 @@ class VisualizerWrapper:
         # Note: groundtruth measurements will be coming from pose+twist (arena) or odom_gz (gazebo)
         pose_topic = rospy.get_param("/gp_mhe/pose_topic", default = "/mocap/" + self.quad_name + "/pose")
         twist_topic = rospy.get_param("/gp_mhe/twist_topic", default ="/mocap/" + self.quad_name + "/twist")
-        odom_gz_topic = rospy.get_param("/gp_mhe/odom_gz_topic", default = "/" + self.quad_name + "/ground_truth/odometry")
+        odom_topic = rospy.get_param("/gp_mhe/odom_topic", default = "/" + self.quad_name + "/ground_truth/odometry")
         imu_topic = rospy.get_param("/gp_mhe/imu_topic", default = "/mavros/imu/data_raw") 
         state_est_topic = rospy.get_param("/gp_mhe/state_est_topic", default = "/" + self.quad_name + "/state_est")
         acceleration_est_topic = rospy.get_param("/gp_mhe/acceleration_est_topic", default = "/" + self.quad_name + "/acceleration_est")
@@ -118,12 +120,11 @@ class VisualizerWrapper:
         record_topic = rospy.get_param("/gp_mpc/record_topic", default = "/" + self.quad_name + "/record")
 
         # Subscribers
-        self.pose_sub = rospy.Subscriber(pose_topic, PoseStamped, self.pose_callback, queue_size=10, tcp_nodelay=True)
-        self.twist_sub = rospy.Subscriber(twist_topic, TwistStamped, self.twist_callback, queue_size=10, tcp_nodelay=True)
+        # self.pose_sub = rospy.Subscriber(pose_topic, PoseStamped, self.pose_callback, queue_size=10, tcp_nodelay=True)
+        # self.twist_sub = rospy.Subscriber(twist_topic, TwistStamped, self.twist_callback, queue_size=10, tcp_nodelay=True)
         self.imu_sub = rospy.Subscriber(imu_topic, Imu, self.imu_callback, queue_size=10, tcp_nodelay=True)
         self.motor_thrust_sub = rospy.Subscriber(motor_thrust_topic, Actuators, self.motor_thrust_callback, queue_size=10, tcp_nodelay=True)
-        if self.env == "gazebo":
-            self.odom_gz_sub = rospy.Subscriber(odom_gz_topic, Odometry, self.odom_gz_callback, queue_size=10, tcp_nodelay=True)
+        self.odom_sub = rospy.Subscriber(odom_topic, Odometry, self.odom_callback, queue_size=10, tcp_nodelay=True)
         self.state_est_sub = rospy.Subscriber(state_est_topic, Odometry, self.state_est_callback, queue_size=10, tcp_nodelay=True)
         self.acceleration_est_sub = rospy.Subscriber(acceleration_est_topic, Imu, self.acceleration_est_callback, queue_size=10, tcp_nodelay=True)
         self.ref_sub = rospy.Subscriber(ref_topic, ReferenceTrajectory, self.ref_callback, queue_size=10, tcp_nodelay=True)
@@ -139,7 +140,6 @@ class VisualizerWrapper:
         min_len = np.min((len(self.x_act), len(self.motor_thrusts)))
         # self.x_act = self.x_act[:min_len]
         self.t_act = self.t_act - self.t_act[0]
-        self.t_imu = self.t_imu - self.t_imu[0]
         # self.motor_thrusts = self.motor_thrusts[:min_len]
 
         self.w_control = self.w_control[:self.seq_len]
@@ -149,10 +149,17 @@ class VisualizerWrapper:
         while len(self.x_act) < self.seq_len * 2:
             self.x_act  = np.append(self.x_act, self.x_act[-1][np.newaxis], axis=0)
             self.t_act  = np.append(self.t_act, self.t_act[-1])
-            self.t_imu = np.append(self.t_imu, self.t_imu[-1])
 
         while len(self.motor_thrusts) < self.seq_len * 2:
             self.motor_thrusts = np.append(self.motor_thrusts, self.motor_thrusts[-1][np.newaxis], axis=0)
+
+        if len(self.x_est) > 0:
+            self.t_est = self.t_est - self.t_est[0]
+            while len(self.x_est) < self.seq_len * 2:
+                self.x_est = np.append(self.x_est, self.x_est[-1][np.newaxis], axis=0)
+                self.t_est = np.append(self.t_est, self.t_est[-1])
+            self.x_est = self.x_est[:self.seq_len * 2]
+            self.t_est = self.t_est[:self.seq_len * 2]
 
         # Save MPC results
         state_in = np.zeros((self.seq_len, self.x_act.shape[1]))
@@ -212,21 +219,28 @@ class VisualizerWrapper:
 
         # Check MHE is running and if it is continue to save MHE results
         if len(self.x_est) > 0:
-            # Remove Exceeding data entry if needed
-            min_len = np.min((min_len, len(self.x_est), len(self.y), len(self.accel_est)))
-            self.x_est = self.x_est[:min_len]
-            self.y = self.y[:min_len]
-            self.accel_est = self.accel_est[:min_len]
-            self.t_act = self.t_act[:min_len]
-            self.t_imu = self.t_imu[:min_len]
-            self.x_act = self.x_act[:min_len]
-            self.motor_thrusts = self.motor_thrusts[:min_len]
+            # self.t_est = self.t_est - self.t_est[0]
+            # while len(self.x_est) < self.seq_len * 2:
+            #     self.x_est = np.append(self.x_est, self.x_est[-1][np.newaxis], axis=0)
+            #     self.t_est = np.append(self.t_est, self.t_est[-1])
 
+            self.t_acc_est = self.t_acc_est - self.t_acc_est[0]
+            while len(self.accel_est) < self.seq_len * 2:
+                self.accel_est = np.append(self.accel_est, self.accel_est[-1][np.newaxis], axis=0)
+                self.t_acc_est = np.append(self.t_acc_est, self.t_acc_est[-1])
+
+            self.t_imu = self.t_imu - self.t_imu[0]
+            while len(self.y) < self.seq_len * 2:
+                self.y = np.append(self.y, self.y[-1][np.newaxis], axis=0)
+                self.t_imu = np.append(self.t_imu, self.t_imu[-1])
+            self.y = self.y[:self.seq_len * 2]
+            self.t_imu = self.t_imu[:self.seq_len * 2]
+            
             mhe_error = np.zeros_like(self.x_est)
             a_est_b_traj = np.zeros((len(self.x_est), 3))
             rospy.loginfo("Filling in MHE dataset and saving...")
             g = cs.vertcat(0, 0, -9.81)
-            for i in tqdm(range(len(self.x_est))):
+            for i in tqdm(range(self.seq_len*2)):
                 u = self.motor_thrusts[i]
                 q = self.x_est[i][3:7]
                 q_inv = quaternion_inverse(q)
@@ -262,8 +276,8 @@ class VisualizerWrapper:
                 pickle.dump(mhe_dict, f)
             with open(os.path.join(self.mhe_dir, 'meta_data.json'), "w") as f:
                 json.dump(self.mhe_meta, f, indent=4)
-            state_estimation_results(self.mhe_dir, self.t_act, self.x_act, self.x_est, self.y,
-                                     mhe_error, self.accel_est, file_type='png')
+            state_estimation_results(self.mhe_dir, self.t_act, self.x_act, self.t_est, self.x_est, self.t_imu, self.y,
+                                     mhe_error, self.t_acc_est, self.accel_est, file_type='png')
 
         # --- Reset all vectors ---
         # Vectors to store Reference Trajectory
@@ -276,6 +290,8 @@ class VisualizerWrapper:
         # Vectors to store Tracking and Estimation Results
         self.t_act = np.zeros((0, 1))
         self.t_imu = np.zeros((0, 1))
+        self.t_est = np.zeros((0, 1))
+        self.t_acc_est = np.zeros((0, 1))
         self.x_act = np.zeros((0, 13))
         self.x_est = np.zeros((0, 13))
         self.y = np.zeros((0, 9))
@@ -295,25 +311,25 @@ class VisualizerWrapper:
         self.a_meas = None
         rospy.loginfo("Recording Complete.")
         
-    def pose_callback(self, msg):
-        if not self.record:
-            return
+    # def pose_callback(self, msg):
+    #     if not self.record:
+    #         return
         
-        self.p_act = [msg.pose.position.x, msg.pose.position.y, msg.pose.position.z]
-        self.p_meas = self.p_act
-        self.q_act = [msg.pose.orientation.w, msg.pose.orientation.x, msg.pose.orientation.y, msg.pose.orientation.z]
+    #     self.p_meas = [msg.pose.position.x, msg.pose.position.y, msg.pose.position.z]
+    #     self.p_act = [msg.pose.position.x, msg.pose.position.y, msg.pose.position.z]
+    #     self.q_act = [msg.pose.orientation.w, msg.pose.orientation.x, msg.pose.orientation.y, msg.pose.orientation.z]
 
-        if self.v_act is not None and self.w_act is not None:
-            x = self.p_act + self.q_act + self.v_act + self.w_act
-            self.x_act = np.append(self.x_act, np.array(x)[np.newaxis, :], axis=0)
-        self.t_act = np.append(self.t_act, msg.header.stamp.to_time())
+    #     if self.v_act is not None and self.w_act is not None:
+    #         x = self.p_act + self.q_act + self.v_act + self.w_act
+    #         self.x_act = np.append(self.x_act, np.array(x)[np.newaxis, :], axis=0)
+    #     self.t_act = np.append(self.t_act, msg.header.stamp.to_time())
 
-    def twist_callback(self, msg):
-        if not self.record:
-            return
+    # def twist_callback(self, msg):
+    #     if not self.record:
+    #         return
         
-        self.v_act = [msg.twist.linear.x, msg.twist.linear.y, msg.twist.linear.z]
-        self.w_act = [msg.twist.angular.x*100, msg.twist.angular.y*100, msg.twist.angular.z*100]
+    #     self.v_act = [msg.twist.linear.x, msg.twist.linear.y, msg.twist.linear.z]
+    #     self.w_act = [msg.twist.angular.x*100, msg.twist.angular.y*100, msg.twist.angular.z*100]
     
     def imu_callback(self, msg):
         if not self.record:
@@ -324,7 +340,7 @@ class VisualizerWrapper:
         if self.p_meas is not None:
             y = self.p_meas + self.w_meas + self.a_meas
             self.y = np.append(self.y, np.array(y)[np.newaxis, :], axis=0)
-        self.t_imu = np.append(self.t_imu, msg.header.stamp.to_time())
+            self.t_imu = np.append(self.t_imu, msg.header.stamp.to_time())
 
     def motor_thrust_callback(self, msg):
         if not self.record:
@@ -334,19 +350,21 @@ class VisualizerWrapper:
         self.motor_thrusts = np.append(self.motor_thrusts, [motor_thrusts], axis=0)
         self.motor_thrusts = np.append(self.motor_thrusts, [motor_thrusts], axis=0)
     
-    def odom_gz_callback(self, msg):
+    def odom_callback(self, msg):
         if not self.record:
             return
         
         p = [msg.pose.pose.position.x, msg.pose.pose.position.y, msg.pose.pose.position.z]
         q = [msg.pose.pose.orientation.w, msg.pose.pose.orientation.x, msg.pose.pose.orientation.y,
             msg.pose.pose.orientation.z]
-        v_b = [msg.twist.twist.linear.x, msg.twist.twist.linear.y, msg.twist.twist.linear.z]
+        v = [msg.twist.twist.linear.x, msg.twist.twist.linear.y, msg.twist.twist.linear.z]
         w = [msg.twist.twist.angular.x, msg.twist.twist.angular.y, msg.twist.twist.angular.z]
         self.p_meas = p
-        v_w = v_dot_q(np.array(v_b), np.array(q)).tolist()
 
-        x = p + q + v_w + w
+        if self.env == "gazebo":
+            v = v_dot_q(np.array(v), np.array(q)).tolist()
+
+        x = p + q + v + w
         
         self.x_act = np.append(self.x_act, np.array(x)[np.newaxis, :], axis=0)
         self.t_act = np.append(self.t_act, msg.header.stamp.to_time())
@@ -364,6 +382,7 @@ class VisualizerWrapper:
         x = p + q + v_w + w
 
         self.x_est = np.append(self.x_est, np.array(x)[np.newaxis, :], axis=0)
+        self.t_est = np.append(self.t_est, msg.header.stamp.to_time())
 
     def acceleration_est_callback(self, msg):
         if not self.record:
@@ -372,6 +391,7 @@ class VisualizerWrapper:
         a_est = [msg.linear_acceleration.x, msg.linear_acceleration.y, msg.linear_acceleration.z]
 
         self.accel_est = np.append(self.accel_est, np.array(a_est)[np.newaxis, :], axis=0)
+        self.t_acc_est = np.append(self.t_acc_est, msg.header.stamp.to_time())
 
     def ref_callback(self, msg):
         if self.x_ref is not None:

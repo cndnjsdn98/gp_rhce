@@ -217,6 +217,8 @@ class QuadOptimizer:
                 model.u = w
                 model.p = cs.vertcat(p, u)
                 model.name = "mhe"
+                # Quaternion normalization constraint
+                model.con_h_expr = self.q[0]**2 + self.q[1]**2 + self.q[2]**2 + self.q[3]**2
             else:
                 model.u = u
                 model.p = p

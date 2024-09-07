@@ -19,6 +19,8 @@ for Quadrocopter Control by Jian Wang et al.) -->
   <xacro:property name="motor_constant" value="1.56252e-06" /> <!-- [kg m/s^2] kf-->
   <xacro:property name="moment_constant" value="0.022" /> <!-- [Nm/N] 0.016 ct -->
   <xacro:property name="max_thrust" value="15.75" /> <!-- [N] Max thrust of individual rotor-->
+  <xacro:property name="max_input_value" value="0.5" /> <!-- # Motors at full thrust -->
+  <xacro:property name="min_input_value" value="0" /> <!-- # Motors turned off -->
   <xacro:property name="time_constant_up" value="0.033" /> <!-- [s] -->
   <xacro:property name="time_constant_down" value="0.033" /> <!-- [s] -->
   <xacro:property name="max_rot_velocity" value="2800" /> <!-- 838 [rad/s] -->
