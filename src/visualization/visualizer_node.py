@@ -43,6 +43,7 @@ class VisualizerWrapper:
         self.use_groundtruth = rospy.get_param("gp_mpc/use_groundtruth", default=True)
         self.mpc_with_gp = rospy.get_param("gp_mpc/with_gp", default=False)
         self.mhe_with_gp = rospy.get_param("gp_mhe/with_gp", default=False)
+        self.mhe_type = rospy.get_param("gp_mhe/mhe_type", default="kinematic")
 
         ns = rospy.get_namespace()
         self.results_dir = rospy.get_param("results_dir", default=None)
@@ -65,7 +66,7 @@ class VisualizerWrapper:
             'with_gp': self.mhe_with_gp,
         }
         self.mpc_dataset_name = "%s_mpc_%s%s"%(self.env, "gt_" if self.use_groundtruth else "", self.quad_name)
-        self.mhe_dataset_name = "%s_mhe_%s"%(self.env, self.quad_name)
+        self.mhe_dataset_name = "%s_%smhe_%s"%(self.env, "k" if self.mhe_type=="kinematic" else "d", self.quad_name)
         self.mpc_dir = os.path.join(self.results_dir, self.mpc_dataset_name)
         self.mhe_dir = os.path.join(self.results_dir, self.mhe_dataset_name)
         # Create Directory
@@ -210,11 +211,12 @@ class VisualizerWrapper:
             "error_pred": self.mpc_gpy_pred,
         }
         # Save results
-        with open(os.path.join(self.mpc_dir, "results.pkl"), "wb") as f:
+        mpc_dir = os.path.join(self.mpc_dir, self.ref_traj_name)
+        with open(os.path.join(mpc_dir, "results.pkl"), "wb") as f:
             pickle.dump(mpc_dict, f)
-        with open(os.path.join(self.mpc_dir, 'meta_data.json'), "w") as f:
+        with open(os.path.join(mpc_dir, 'meta_data.json'), "w") as f:
             json.dump(self.mpc_meta, f, indent=4)
-        trajectory_tracking_results(self.mpc_dir, self.t_ref, mpc_t, self.x_ref, state_in,
+        trajectory_tracking_results(mpc_dir, self.t_ref, mpc_t, self.x_ref, state_in,
                                     self.u_ref, u_in, mpc_error, w_control=self.w_control, file_type='png')
 
         # Check MHE is running and if it is continue to save MHE results
@@ -272,11 +274,12 @@ class VisualizerWrapper:
                 "accel_est": self.accel_est,
             } 
             # Save results
-            with open(os.path.join(self.mhe_dir, "results.pkl"), "wb") as f:
+            mhe_dir = os.path.join(self.mhe_dir, self.ref_traj_name)
+            with open(os.path.join(mhe_dir, "results.pkl"), "wb") as f:
                 pickle.dump(mhe_dict, f)
-            with open(os.path.join(self.mhe_dir, 'meta_data.json'), "w") as f:
+            with open(os.path.join(mhe_dir, 'meta_data.json'), "w") as f:
                 json.dump(self.mhe_meta, f, indent=4)
-            state_estimation_results(self.mhe_dir, self.t_act, self.x_act, self.t_est, self.x_est, self.t_imu, self.y,
+            state_estimation_results(mhe_dir, self.t_act, self.x_act, self.t_est, self.x_est, self.t_imu, self.y,
                                      mhe_error, self.t_acc_est, self.accel_est, file_type='png')
 
         # --- Reset all vectors ---

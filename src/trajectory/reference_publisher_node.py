@@ -15,7 +15,7 @@ this program. If not, see <http://www.gnu.org/licenses/>.
 from std_msgs.msg import Bool
 from ros_gp_rhce.msg import ReferenceTrajectory
 from src.quad_opt.quad import custom_quad_param_loader
-from src.trajectory.trajectories import loop_trajectory, random_trajectory, lemniscate_trajectory, updown_trajectory
+from src.trajectory.trajectories import loop_trajectory, random_trajectory, lemniscate_trajectory, hover_trajectory
 import numpy as np
 import rospy
 
@@ -82,12 +82,12 @@ class ReferenceGenerator:
         rate = rospy.Rate(0.2)
         while not rospy.is_shutdown():
             # NOTE: HOVER MODE IS NOT BEING ACCEPTED BY MPC NODE RIGHT NOW
-            if not self.gp_mpc_busy and mode == "hover":
-                rospy.loginfo("Sending hover-in-place command")
-                msg = ReferenceTrajectory()
-                reference_pub.publish(msg)
-                rospy.signal_shutdown("All trajectories were sent to the MPC")
-                break
+            # if not self.gp_mpc_busy and mode == "hover":
+            #     rospy.loginfo("Sending hover-in-place command")
+            #     msg = ReferenceTrajectory()
+            #     reference_pub.publish(msg)
+            #     rospy.signal_shutdown("All trajectories were sent to the MPC")
+            #     break
 
             if not self.gp_mpc_busy and curr_trajectory_ind == n_trajectories:
                 rospy.signal_shutdown("All trajectories were sent to the MPC")
@@ -156,9 +156,9 @@ class ReferenceGenerator:
                     seed += 1
                     v_ind = 0
 
-            elif not self.gp_mpc_busy and mode == "updown":
+            elif not self.gp_mpc_busy and mode == "hover":
                 rospy.loginfo("Sending hover trajectory")
-                x_ref, t_ref, u_ref = updown_trajectory(quad, opt_dt, lin_acc=loop_a, radius=loop_r,
+                x_ref, t_ref, u_ref = hover_trajectory(quad, opt_dt, lin_acc=loop_a, radius=loop_r,
                                                         z=loop_z, z_dim=z_dim, map_name=map_limits, 
                                                         v_max=loop_v_max ,plot=plot, environment=env)
 

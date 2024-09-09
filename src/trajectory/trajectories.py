@@ -461,7 +461,7 @@ def lemniscate_trajectory(quad, discretization_dt, radius, z, lin_acc, clockwise
 
     return minimum_snap_trajectory_generator(traj, yaw, t_ref, quad, map_limits, plot, env=environment)
 
-def updown_trajectory(quad, discretization_dt, lin_acc, radius, z, v_max, map_name, plot, z_dim, environment):
+def hover_trajectory(quad, discretization_dt, lin_acc, radius, z, v_max, map_name, plot, z_dim, environment):
     """
     Creates a hover trajectory that hovers in the given x-y position and moves only in the z direction.
 
