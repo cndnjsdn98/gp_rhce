@@ -13,7 +13,7 @@ this program. If not, see <http://www.gnu.org/licenses/>.
 """
 
 from std_msgs.msg import Bool
-from ros_gp_rhce.msg import ReferenceTrajectory
+from gp_rhce.msg import ReferenceTrajectory
 from src.quad_opt.quad import custom_quad_param_loader
 from src.trajectory.trajectories import loop_trajectory, random_trajectory, lemniscate_trajectory, hover_trajectory
 import numpy as np

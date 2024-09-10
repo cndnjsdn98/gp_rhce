@@ -245,8 +245,8 @@ def trajectory_tracking_results(img_save_dir, t_ref, t_executed, x_ref, x_execut
 
 
 def state_estimation_results(img_save_dir, t_act, x_act, t_est, x_est, t_meas, y_measured, 
-                             mhe_error, t_acc_est, accel_est, error_pred=None, file_type='png',
-                             show_error=False, show_dvdt=False):
+                             mhe_error, t_acc_est=None, accel_est=None, error_pred=None, file_type='png',
+                             show_error=False, show_dvdt=False, a_thrust=None, a_meas=None):
     plt.switch_backend('Agg')
     SMALL_SIZE = 14
     MEDIUM_SIZE = 18
@@ -438,24 +438,41 @@ def state_estimation_results(img_save_dir, t_act, x_act, t_est, x_est, t_meas, y
                     transparent=False, bbox_inches=None, metadata=None)
         plt.close(fig)
 
-    fig, ax = plt.subplots(3, 1, sharex='all', figsize=(13, 14))
-    for i in range(3):
-        p1, = ax[i].plot(t_meas, y_measured[:, i+6], label='measurement', color='C1', zorder=1)
-        if accel_est is not None:
+    if accel_est is not None:
+        fig, ax = plt.subplots(3, 1, sharex='all', figsize=(13, 14))
+        for i in range(3):
+            p1, = ax[i].plot(t_meas, y_measured[:, i+6], label='measurement', color='C1', zorder=1)
             p2, = ax[i].plot(t_acc_est, accel_est[:, i], label='mhe est', color='C0', zorder=2)
-        tit = 'a_' + labels[i] + ' measurement'
-        # lns = [p2, p1]
-        ax[i].legend()
-        ax[i].set_ylabel(tit)
-        ax[i].grid()
-    ax[0].set_title(r'$a\:[m/s^2]$')
-    ax[2].set_xlabel(r'$t [s]$')
-    plt.tight_layout()
-    fig.savefig(img_save_dir + '/acceleration_estimation.'+file_type, dpi=None, facecolor='w', edgecolor='w',
-                orientation='portrait', format=file_type,
-                transparent=False, bbox_inches=None, metadata=None)
-    plt.close(fig)
+            tit = 'a_' + labels[i] + ' measurement'
+            # lns = [p2, p1]
+            ax[i].legend()
+            ax[i].set_ylabel(tit)
+            ax[i].grid()
+        ax[0].set_title(r'$a\:[m/s^2]$')
+        ax[2].set_xlabel(r'$t [s]$')
+        plt.tight_layout()
+        fig.savefig(img_save_dir + '/acceleration_estimation.'+file_type, dpi=None, facecolor='w', edgecolor='w',
+                    orientation='portrait', format=file_type,
+                    transparent=False, bbox_inches=None, metadata=None)
+        plt.close(fig)
 
+    if a_meas is not None:
+        fig, ax = plt.subplots(3, 1, sharex='all', figsize=(13, 14))
+        for i in range(3):
+            p1, = ax[i].plot(t_meas, a_meas[:, i], label='measurement', color='C1', zorder=1)
+            p2, = ax[i].plot(t_meas, a_thrust[:, i], label='thrust command', color='C0', zorder=2)
+            tit = 'a_' + labels[i] + ' measurement'
+            # lns = [p2, p1]
+            ax[i].legend()
+            ax[i].set_ylabel(tit)
+            ax[i].grid()
+        ax[0].set_title(r'$a\:[m/s^2]$')
+        ax[2].set_xlabel(r'$t [s]$')
+        plt.tight_layout()
+        fig.savefig(img_save_dir + '/thrust_estimation.'+file_type, dpi=None, facecolor='w', edgecolor='w',
+                    orientation='portrait', format=file_type,
+                    transparent=False, bbox_inches=None, metadata=None)
+        plt.close(fig)
 
     fig, ax = plt.subplots(3, 1, figsize=(13, 14))
     for i in range(3):

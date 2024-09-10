@@ -43,7 +43,7 @@ class VisualizerWrapper:
         self.use_groundtruth = rospy.get_param("gp_mpc/use_groundtruth", default=True)
         self.mpc_with_gp = rospy.get_param("gp_mpc/with_gp", default=False)
         self.mhe_with_gp = rospy.get_param("gp_mhe/with_gp", default=False)
-        self.mhe_type = rospy.get_param("gp_mhe/mhe_type", default="kinematic")
+        self.mhe_type = rospy.get_param("gp_mhe/mhe_type", default=None)
 
         ns = rospy.get_namespace()
         self.results_dir = rospy.get_param("results_dir", default=None)
@@ -65,13 +65,19 @@ class VisualizerWrapper:
             'n_mhe': self.n_mhe,
             'with_gp': self.mhe_with_gp,
         }
+        # Create MPC Directory
         self.mpc_dataset_name = "%s_mpc_%s%s"%(self.env, "gt_" if self.use_groundtruth else "", self.quad_name)
-        self.mhe_dataset_name = "%s_%smhe_%s"%(self.env, "k" if self.mhe_type=="kinematic" else "d", self.quad_name)
         self.mpc_dir = os.path.join(self.results_dir, self.mpc_dataset_name)
-        self.mhe_dir = os.path.join(self.results_dir, self.mhe_dataset_name)
-        # Create Directory
         safe_mkdir_recursive(self.mpc_dir)
-        safe_mkdir_recursive(self.mhe_dir)
+        # Create MHE Directory if MHE Type is given
+        # else check every second
+        if self.mhe_type is not None:
+            self.mhe_dataset_name = "%s_%smhe_%s"%(self.env, "k" if self.mhe_type=="kinematic" else "d", self.quad_name)
+            self.mhe_dir = os.path.join(self.results_dir, self.mhe_dataset_name)
+            safe_mkdir_recursive(self.mhe_dir)
+            self.timer = None
+        else:
+            self.timer = rospy.Timer(rospy.Duration(1), self.check_mhe_type)
 
         self.record = False
 
@@ -212,6 +218,7 @@ class VisualizerWrapper:
         }
         # Save results
         mpc_dir = os.path.join(self.mpc_dir, self.ref_traj_name)
+        safe_mkdir_recursive(mpc_dir)
         with open(os.path.join(mpc_dir, "results.pkl"), "wb") as f:
             pickle.dump(mpc_dict, f)
         with open(os.path.join(mpc_dir, 'meta_data.json'), "w") as f:
@@ -226,10 +233,11 @@ class VisualizerWrapper:
             #     self.x_est = np.append(self.x_est, self.x_est[-1][np.newaxis], axis=0)
             #     self.t_est = np.append(self.t_est, self.t_est[-1])
 
-            self.t_acc_est = self.t_acc_est - self.t_acc_est[0]
-            while len(self.accel_est) < self.seq_len * 2:
-                self.accel_est = np.append(self.accel_est, self.accel_est[-1][np.newaxis], axis=0)
-                self.t_acc_est = np.append(self.t_acc_est, self.t_acc_est[-1])
+            if len(self.t_acc_est) > 0:
+                self.t_acc_est = self.t_acc_est - self.t_acc_est[0]
+                while len(self.accel_est) < self.seq_len * 2:
+                    self.accel_est = np.append(self.accel_est, self.accel_est[-1][np.newaxis], axis=0)
+                    self.t_acc_est = np.append(self.t_acc_est, self.t_acc_est[-1])
 
             self.t_imu = self.t_imu - self.t_imu[0]
             while len(self.y) < self.seq_len * 2:
@@ -239,7 +247,9 @@ class VisualizerWrapper:
             self.t_imu = self.t_imu[:self.seq_len * 2]
             
             mhe_error = np.zeros_like(self.x_est)
+            a_meas_traj = np.zeros((len(self.x_est), 3))
             a_est_b_traj = np.zeros((len(self.x_est), 3))
+            a_thrust_traj = np.zeros((len(self.x_est), 3))
             rospy.loginfo("Filling in MHE dataset and saving...")
             g = cs.vertcat(0, 0, -9.81)
             for i in tqdm(range(self.seq_len*2)):
@@ -249,10 +259,12 @@ class VisualizerWrapper:
 
                 a_meas = self.y[i][6:9]
                 a_meas = np.stack(a_meas + v_dot_q(g, q_inv).T)
+                a_meas_traj[i] = np.squeeze(a_meas.T)
 
                 # Model Accel Est
-                a_thrust = cs.vertcat(0, 0, u[0] + u[1] + u[2] + u[3] * self.quad.max_thrust / self.quad.mass)
-                
+                a_thrust = cs.vertcat(0, 0, (u[0] + u[1] + u[2] + u[3]) * self.quad.max_thrust / self.quad.mass)
+                a_thrust_traj[i] = np.squeeze(a_thrust.T)
+
                 a_est_b = v_dot_q(v_dot_q(a_thrust, q) + g, q_inv)
                 a_est_b = np.squeeze(a_est_b.T)
                 a_est_b_traj[i] = a_est_b
@@ -275,13 +287,17 @@ class VisualizerWrapper:
             } 
             # Save results
             mhe_dir = os.path.join(self.mhe_dir, self.ref_traj_name)
+            safe_mkdir_recursive(mhe_dir)
             with open(os.path.join(mhe_dir, "results.pkl"), "wb") as f:
                 pickle.dump(mhe_dict, f)
             with open(os.path.join(mhe_dir, 'meta_data.json'), "w") as f:
                 json.dump(self.mhe_meta, f, indent=4)
-            state_estimation_results(mhe_dir, self.t_act, self.x_act, self.t_est, self.x_est, self.t_imu, self.y,
-                                     mhe_error, self.t_acc_est, self.accel_est, file_type='png')
-
+            if len(self.t_acc_est) > 0:
+                state_estimation_results(mhe_dir, self.t_act, self.x_act, self.t_est, self.x_est, self.t_imu, self.y,
+                                        mhe_error, t_acc_est=self.t_acc_est, accel_est=self.accel_est, file_type='png')
+            else:
+                state_estimation_results(mhe_dir, self.t_act, self.x_act, self.t_est, self.x_est, self.t_imu, self.y,
+                                        mhe_error, a_thrust=a_thrust_traj, a_meas=a_meas_traj, file_type='png', )
         # --- Reset all vectors ---
         # Vectors to store Reference Trajectory
         self.seq_len = None
@@ -447,6 +463,17 @@ class VisualizerWrapper:
             _save_record_thread.start()
 
         self.record = msg.data
+
+    def check_mhe_type(self, event):
+        self.mhe_type = rospy.get_param("gp_mhe/mhe_type", default=None)
+        if self.mhe_type is not None:
+            self.mhe_dataset_name = "%s_%smhe_%s"%(self.env, "k" if self.mhe_type=="kinematic" else "d", self.quad_name)
+            self.mhe_dir = os.path.join(self.results_dir, self.mhe_dataset_name)
+            # Create Directory
+            safe_mkdir_recursive(self.mhe_dir)
+            if self.timer is not None:
+                self.timer.shutdonw()
+                self.timer = None
 
 def main():
     rospy.init_node("visualizer")

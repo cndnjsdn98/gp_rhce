@@ -1,0 +1,9 @@
+# DMHE System Noise
+w_p: 1000
+w_q: 100 # 0.000285
+w_v: 10 # 0.005
+w_r: 1000 #0.0006 0.00065 0.005 0.01
+
+# MHE Measurement Noise
+v_p: 0.00001
+v_r: 0.00035 

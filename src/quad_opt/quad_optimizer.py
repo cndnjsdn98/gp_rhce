@@ -88,9 +88,6 @@ class QuadOptimizer:
         self.w = cs.vertcat(self.w_p, self.w_q, self.w_v, self.w_r)
 
         # Declare additional model variables for MHE
-        self.a = cs.MX.sym('a', 3)  # IMU acc measurement
-        self.a_dot = cs.MX.sym('a_dot', 3)
-
         if self.change_mass != 0 and mhe_type=="dynamic":
             self.k_m = cs.MX.sym('km') # quadrotor mass
             self.m_dot = cs.MX.sym('km_dot')
@@ -135,6 +132,8 @@ class QuadOptimizer:
 
         # Model adjustments for MHE
         if mhe_type == "kinematic":
+            self.a = cs.MX.sym('a', 3)  # IMU acc measurement
+            self.a_dot = cs.MX.sym('a_dot', 3)
             # Full state vector (16-dimensional)
             self.x = cs.vertcat(self.x, self.a)
             self.x_dot = cs.vertcat(self.x_dot, self.a_dot)
@@ -157,6 +156,10 @@ class QuadOptimizer:
             self.w = cs.vertcat(self.w, self.w_d)
 
             f_thrust = self.u * self.quad.max_thrust / (self.quad.mass + self.k_m)
+            print("______________")
+            print(f_thrust)
+            print("______________")
+            
             self.a = cs.vertcat(0.0, 0.0, (f_thrust[0] + f_thrust[1] + f_thrust[2] + f_thrust[3])) #a_thrust
             # Full measurement state vector
             self.y = cs.vertcat(self.p, self.r, self.d)

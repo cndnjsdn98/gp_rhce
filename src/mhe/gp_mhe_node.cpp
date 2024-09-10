@@ -48,6 +48,14 @@ Node::Node(ros::NodeHandle& nh) {
             rate.sleep();
         }
     }
+    if (mhe_type_ == "dynamic" && u_.empty()) {
+        ROS_INFO("Motor Thrusts not received yet. Skipping time step...");
+        ros::Rate rate(1);
+        while (u_.empty() && ros::ok()) {
+            ros::spinOnce();
+            rate.sleep();
+        }
+    }
 
     ROS_INFO("MHE: %s Loaded in %s", quad_name_.c_str(), environment_.c_str());
 }
@@ -111,12 +119,12 @@ void Node::initPublishers(ros::NodeHandle& nh) {
 
 
 void Node::imuCallback(const sensor_msgs::Imu::ConstPtr& msg) {
+    // ROS_INFO("%.4f",msg->header.stamp.toSec());
     if (p_.empty()) {
         // ROS_WARN("Position measurement not received yet. Skipping time step...");
         return;
     } 
     if (mhe_type_ == "dynamic" && u_.empty()) {
-        ROS_WARN("Motor Thrusts not received yet. Skipping time step...");
         return;
     }
 
@@ -124,12 +132,14 @@ void Node::imuCallback(const sensor_msgs::Imu::ConstPtr& msg) {
     w_ = {msg->angular_velocity.x, 
           msg->angular_velocity.y, 
           msg->angular_velocity.z};
-    a_ = {msg->linear_acceleration.x, 
-          msg->linear_acceleration.y, 
-          msg->linear_acceleration.z};
     std::copy(p_.begin(), p_.end(), y_.begin());
     std::copy(w_.begin(), w_.end(), y_.begin() + IDX_RATE_START);
-    std::copy(a_.begin(), a_.end(), y_.begin() + IDX_ACCEL_START);
+    if (mhe_type_ == "kinematic") {
+        a_ = {msg->linear_acceleration.x, 
+              msg->linear_acceleration.y, 
+              msg->linear_acceleration.z};
+        std::copy(a_.begin(), a_.end(), y_.begin() + IDX_ACCEL_START);
+    }
 
 
     // Check if there are any skipped messages

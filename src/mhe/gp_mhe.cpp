@@ -71,7 +71,7 @@ void GP_MHE::setHistory(const std::vector<std::vector<double>>& y_history, const
     if (mhe_type_ == "dynamic") {
         for (int i = 0; i < MHE_N; ++i) { 
             std::copy(u_history[i].begin(), u_history[i].end(), u_.begin());
-            ocp_nlp_cost_model_set(nlp_config_, nlp_dims_, nlp_in_, i, "p", static_cast<void*>(u_.data()));
+            ocp_nlp_out_set(nlp_config_, nlp_dims_, nlp_out_, i, "pi", static_cast<void*>(u_.data()));
         }
     }
 }
@@ -85,8 +85,7 @@ int GP_MHE::solveMHE(const std::vector<std::vector<double>>& y_history, const st
     if (status_ != ACADOS_SUCCESS) {
         return status_;
     } 
-    status_ = ACADOS_SUCCESS;
-    ocp_nlp_get(nlp_config_, nlp_solver_, "time_tot", &optimization_dt_);
+
     ocp_nlp_out_get(nlp_config_, nlp_dims_, nlp_out_, 1, "x", &x0_bar_[0]);
     return status_;
 }
@@ -96,5 +95,6 @@ void GP_MHE::getStateEst(std::vector<double>& x_est) {
 }
 
 double GP_MHE::getOptimizationTime() {
+    ocp_nlp_get(nlp_config_, nlp_solver_, "time_tot", &optimization_dt_);
     return optimization_dt_;
 }

@@ -281,7 +281,7 @@ def main():
                 q_mhe = 1/np.squeeze(np.hstack((w_p, w_q, w_v, w_r, w_m)))
             else:
                 q_mhe = 1/np.squeeze(np.hstack((w_p, w_q, w_v, w_r)))
-        else:
+        elif with_gp:
             if change_mass != 0:
                 q_mhe = 1/np.squeeze(np.hstack((w_p, w_q, w_v, w_r, w_d, w_m)))
             else:
