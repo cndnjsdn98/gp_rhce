@@ -4,7 +4,7 @@
   <!-- <arg name="quad_name" default="iris"/> -->
   <arg name="mav_name" default="$(arg quad_name)"/>
   <arg name="model" value="$(find rotors_description)/urdf/mav_generic_odometry_sensor.gazebo"/>
-  <arg name="world_name" default="$(find ros_gp_rhce)/config/basic.world"/>
+  <arg name="world_name" default="$(find gp_rhce)/config/gazebo/basic.world"/>
 
   <arg name="x_init" default="0"/>
   <arg name="y_init" default="0"/>
