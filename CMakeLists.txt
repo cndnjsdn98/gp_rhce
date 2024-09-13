@@ -5,7 +5,7 @@ project(gp_rhce)
 set(CMAKE_BUILD_TYPE Release)
 
 # Compile as C++11, supported in ROS Kinetic and newer
-add_compile_options(-std=c++11)
+add_compile_options(-std=c++17)
 
 # Additional optimization flags
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")

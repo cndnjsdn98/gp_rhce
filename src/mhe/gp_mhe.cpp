@@ -18,8 +18,6 @@ GP_MHE::GP_MHE(std::string& mhe_type) {
     acados_ocp_capsule_ = mhe_acados_create_capsule();
     // Create MHE Acados model
     status_ = mhe_acados_create(acados_ocp_capsule_);
-    // If i want to create with new estimation window use the following:
-    // status_ = mhe_acados_create_with_discretization(acados_ocp_capsule_, N_, new_time_steps_);
     
     if (status_) {
         throw std::runtime_error("MHE_acados_create() failed with status: " + std::to_string(status_));
@@ -36,12 +34,14 @@ GP_MHE::GP_MHE(std::string& mhe_type) {
     gpy_corr_ = {0, 0, 0};
     if (mhe_type_ == "kinematic") {
         x0_bar_ = {0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9.81};
+        n_meas_states_ = N_POSITION_STATES + N_RATE_STATES + N_ACCEL_STATES;
     } else if (mhe_type_ == "dynamic") {
         x0_bar_ = {0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+        n_meas_states_ = N_POSITION_STATES + N_RATE_STATES;
     }
 
     for (int i = 0; i < MHE_N; ++i ) {
-        ocp_nlp_out_set(nlp_config_, nlp_dims_, nlp_out_, i, "x", static_cast<void*>(x0_bar_.data()));  
+        ocp_nlp_out_set(nlp_config_, nlp_dims_, nlp_out_, i, "x", reinterpret_cast<void*>(x0_bar_.data()));  
     }
 
     // x0_bar_.resize(MHE_NX);
@@ -55,28 +55,27 @@ GP_MHE::~GP_MHE() {
     mhe_acados_free_capsule(acados_ocp_capsule_);
 }
 
-void GP_MHE::setHistory(const std::vector<std::vector<double>>& y_history, const std::vector<std::vector<double>>& u_history) {
+void GP_MHE::setHistory(const std::vector<std::vector<double>>& y_history,const std::vector<std::vector<double>>& u_history) {
     std::copy(y_history[0].begin(), y_history[0].end(), yref_0_.begin());
-    // std::fill(yref_0_.begin() + N_MEAS_STATES, yref_0_.begin() + N_MEAS_STATES + MHE_NU, 0);
-    std::copy(x0_bar_.begin(), x0_bar_.end(), yref_0_.begin() + N_MEAS_STATES + MHE_NU);
-
-
-    ocp_nlp_cost_model_set(nlp_config_, nlp_dims_, nlp_in_, 0, "yref", static_cast<void*>(yref_0_.data()));
+    // std::fill(yref_0_.begin() + n_meas_states_, yref_0_.begin() + n_meas_states_ + MHE_NU, 0);
+    std::copy(x0_bar_.begin(), x0_bar_.end(), yref_0_.begin() + n_meas_states_ + MHE_NU);
+    ocp_nlp_cost_model_set(nlp_config_, nlp_dims_, nlp_in_, 0, "yref", reinterpret_cast<void*>(yref_0_.data()));
+    
     for (int i = 1; i < MHE_N; ++i) { 
         std::copy(y_history[i].begin(), y_history[i].end(), yref_.begin());
-        // std::fill(yref_.begin() + N_MEAS_STATES, yref_.begin() + N_MEAS_STATES + MHE_NU, 0);
-        ocp_nlp_cost_model_set(nlp_config_, nlp_dims_, nlp_in_, i, "yref", static_cast<void*>(yref_.data()));
+        // std::fill(yref_.begin() + n_meas_states_, yref_.begin() + n_meas_states_ + MHE_NU, 0);
+        ocp_nlp_cost_model_set(nlp_config_, nlp_dims_, nlp_in_, i, "yref", reinterpret_cast<void*>(yref_.data()));
     }
 
     if (mhe_type_ == "dynamic") {
         for (int i = 0; i < MHE_N; ++i) { 
             std::copy(u_history[i].begin(), u_history[i].end(), u_.begin());
-            ocp_nlp_out_set(nlp_config_, nlp_dims_, nlp_out_, i, "pi", static_cast<void*>(u_.data()));
+            mhe_acados_update_params(acados_ocp_capsule_, i, reinterpret_cast<double*>(u_.data()), u_.size());
         }
     }
 }
 
-int GP_MHE::solveMHE(const std::vector<std::vector<double>>& y_history, const std::vector<std::vector<double>>& u_history) {
+int GP_MHE::solveMHE(const std::vector<std::vector<double>>& y_history,const std::vector<std::vector<double>>& u_history) {
     // Set the history values
     setHistory(y_history, u_history);
     // Solve MHE
@@ -98,3 +97,8 @@ double GP_MHE::getOptimizationTime() {
     ocp_nlp_get(nlp_config_, nlp_solver_, "time_tot", &optimization_dt_);
     return optimization_dt_;
 }
+
+int GP_MHE::getMeasStateLen() {
+    return n_meas_states_;
+}
+

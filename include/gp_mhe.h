@@ -54,8 +54,6 @@
 
 #define IDX_Q_W 3
 
-#define N_MEAS_STATES N_POSITION_STATES + N_RATE_STATES + N_ACCEL_STATES 
-
 #define IDX_POSITION_START 0
 #define IDX_RATE_START N_POSITION_STATES
 #define IDX_ACCEL_START N_POSITION_STATES + N_RATE_STATES
@@ -67,9 +65,9 @@ private:
 
     // Acados MHE Solver status
     int status_;
+    int n_meas_states_;
 
     // Acados
-    double* new_time_steps_ = nullptr;
     ocp_nlp_config *nlp_config_;
     ocp_nlp_dims *nlp_dims_;
     ocp_nlp_in *nlp_in_;
@@ -99,6 +97,7 @@ public:
     void setHistory(const std::vector<std::vector<double>>& y_history, const std::vector<std::vector<double>>& u_history);
     void getStateEst(std::vector<double>& x_est);
     double getOptimizationTime();
+    int getMeasStateLen();
 };
 
 #endif

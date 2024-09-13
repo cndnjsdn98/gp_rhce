@@ -156,10 +156,6 @@ class QuadOptimizer:
             self.w = cs.vertcat(self.w, self.w_d)
 
             f_thrust = self.u * self.quad.max_thrust / (self.quad.mass + self.k_m)
-            print("______________")
-            print(f_thrust)
-            print("______________")
-            
             self.a = cs.vertcat(0.0, 0.0, (f_thrust[0] + f_thrust[1] + f_thrust[2] + f_thrust[3])) #a_thrust
             # Full measurement state vector
             self.y = cs.vertcat(self.p, self.r, self.d)
@@ -221,7 +217,7 @@ class QuadOptimizer:
                 model.p = cs.vertcat(p, u)
                 model.name = "mhe"
                 # Quaternion normalization constraint
-                model.con_h_expr = self.q[0]**2 + self.q[1]**2 + self.q[2]**2 + self.q[3]**2
+                # model.con_h_expr = self.q[0]**2 + self.q[1]**2 + self.q[2]**2 + self.q[3]**2
             else:
                 model.u = u
                 model.p = p
@@ -308,12 +304,12 @@ class QuadOptimizer:
         if mhe:
             if mhe_type == "kinematic":
                 x_dot_mhe = cs.vertcat(self.p_dynamics(mhe=mhe), self.q_dynamics(mhe=mhe), 
-                                        self.v_dynamics(mhe=mhe, mhe_type=mhe_type), self.w_dynamics(mhe=mhe))
+                                        self.v_dynamics(mhe=mhe), self.w_dynamics(mhe=mhe))
                 x_dot_mhe = cs.vertcat(x_dot_mhe, np.zeros(3) + self.w_a)
                 return cs.Function('x_dot_mhe', [self.x, self.u, self.w], [x_dot_mhe], ['x', 'u', 'w'], ['x_dot'])
             elif mhe_type == "dynamic":
                 x_dot_mhe = cs.vertcat(self.p_dynamics(mhe=mhe), self.q_dynamics(mhe=mhe), 
-                                        self.v_dynamics(mhe=mhe, mhe_type=mhe_type), self.w_dynamics(mhe=mhe))
+                                        self.v_dynamics(mhe=mhe), self.w_dynamics(mhe=mhe))
                 x_dot_mhe = cs.vertcat(x_dot_mhe, np.zeros(self.n_d)+self.w_d, np.zeros(self.n_param))
                 return cs.Function('x_dot_mhe', [self.x, self.u, self.w], [x_dot_mhe], ['x', 'u', 'w'], ['x_dot'])
         elif prop:
@@ -335,7 +331,7 @@ class QuadOptimizer:
         else:
             return 1 / 2 * cs.mtimes(skew_symmetric(self.r), self.q)
 
-    def v_dynamics(self, mhe=False, mhe_type="kinematic"):
+    def v_dynamics(self, mhe=False):
         """
         :param
         """

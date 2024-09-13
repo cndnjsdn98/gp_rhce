@@ -30,10 +30,10 @@ Node::Node(ros::NodeHandle& nh) {
     p_.reserve(N_POSITION_STATES);
     w_.reserve(N_RATE_STATES);
     a_.reserve(N_ACCEL_STATES);
-    y_.resize(N_MEAS_STATES);
+    y_.resize(gp_mhe_->getMeasStateLen() + MHE_NU);
     u_.resize(N_MOTORS);
-    y_hist_.resize(MHE_N, std::vector<double>(N_MEAS_STATES));
-    y_hist_cp_.resize(MHE_N, std::vector<double>(N_MEAS_STATES));
+    y_hist_.resize(MHE_N, std::vector<double>(gp_mhe_->getMeasStateLen() + MHE_NU));
+    y_hist_cp_.resize(MHE_N, std::vector<double>(gp_mhe_->getMeasStateLen() + MHE_NU));
     u_hist_.resize(MHE_N, std::vector<double>(N_MOTORS));
     u_hist_cp_.resize(MHE_N, std::vector<double>(N_MOTORS));
     if (mhe_type_ == "kinematic") {
@@ -57,6 +57,9 @@ Node::Node(ros::NodeHandle& nh) {
         }
     }
 
+    optimization_dt_ = 0;
+    mhe_idx_ = 0;
+    
     ROS_INFO("MHE: %s Loaded in %s", quad_name_.c_str(), environment_.c_str());
 }
 

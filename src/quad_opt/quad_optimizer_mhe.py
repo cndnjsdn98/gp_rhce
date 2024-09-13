@@ -27,7 +27,7 @@ from src.quad_opt.quad_optimizer import QuadOptimizer
 class QuadOptimizerMHE(QuadOptimizer):
     def __init__(self, quad, t_mhe=0.5, n_mhe=50, mhe_type="kinematic",
                  q_mhe=None, q0_factor=None, r_mhe=None, 
-                 model_name="quad_3d_acados_mhe", solver_options=None,
+                 model_name="quad_3d_acados_mhe",
                  mhe_gpy_ensemble=None, change_mass=0,
                  compile_acados=True):
         """
@@ -41,7 +41,6 @@ class QuadOptimizerMHE(QuadOptimizer):
         :param r_mhe: diagonal of Re matrix for measurement mismatch cost of MHE cost function. Must be a numpy array of length ___.
         :param B_x: dictionary of matrices that maps the outputs of the gp regressors to the state space.
         :param model_name: Acados model name.
-        :param solver_options: Optional set of extra options dictionary for solvers.
         :param mhe_gpy_ensemble: GPyEnsemble instance to be utilized in MHE
         :param change_mass: Value of varying payload mass 
         # TODO: Change the chage_mass to be boolean
@@ -137,7 +136,7 @@ class QuadOptimizerMHE(QuadOptimizer):
         # ### Setup and compile Acados OCP solvers ### #
         if compile_acados:
             for key_model in acados_models_mhe.values():
-                ocp_mhe, nyx, nx, nu = self.create_mhe_solver(key_model, q_mhe, q0_factor, r_mhe, solver_options)
+                ocp_mhe, nyx, nx, nu = self.create_mhe_solver(key_model, q_mhe, q0_factor, r_mhe)
                 self.nyx = nyx
                 self.nx = nx
                 self.nu = nu
@@ -146,7 +145,7 @@ class QuadOptimizerMHE(QuadOptimizer):
                 json_file_mhe = os.path.join(self.acados_models_dir, "mhe", key_model.name + '.json')
                 self.acados_mhe_solver = AcadosOcpSolver(ocp_mhe, json_file=json_file_mhe)
 
-    def create_mhe_solver(self, model, q_cost, q0_factor, r_cost, solver_options):
+    def create_mhe_solver(self, model, q_cost, q0_factor, r_cost):
         """
         Creates OCP objects to formulate the MPC optimization
         :param model: Acados model of the system
@@ -155,7 +154,6 @@ class QuadOptimizerMHE(QuadOptimizer):
         :param q0_factor: integer to set the arrival cost of MHE as a factor/multiple of q_mhe.
         :param r_cost: diagonal of R matrix for measurement mismatch cost of MHE cost function. 
         Must be a numpy array of length equal to number of measurements.
-        :param solver_options: Optional set of extra options dictionary for solvers.
         """
         # Set Arrival Cost as a factor of q_cost
         q0_cost = q_cost * q0_factor
@@ -224,18 +222,18 @@ class QuadOptimizerMHE(QuadOptimizer):
             ocp_mhe.constraints.ubx_0 = self.param_ubx
             ocp_mhe.constraints.idxbx_0 = np.array([self.state_dim])
         
-        # Quaternion normalization Constraint
-        eps = 1e-6
-        ocp_mhe.constraints.nh = 1
-        ocp_mhe.constraints.lh = np.array([1 - eps])
-        ocp_mhe.constraints.uh = np.array([1 + eps])
+        # # Quaternion normalization Constraint
+        # eps = 1e-6
+        # ocp_mhe.constraints.nh = 1
+        # ocp_mhe.constraints.lh = np.array([1 - eps])
+        # ocp_mhe.constraints.uh = np.array([1 + eps])
         
         # Solver options
         ocp_mhe.solver_options.qp_solver = 'PARTIAL_CONDENSING_HPIPM'
         ocp_mhe.solver_options.hessian_approx = 'GAUSS_NEWTON'
         ocp_mhe.solver_options.integrator_type = 'ERK'
         ocp_mhe.solver_options.print_level = 0
-        ocp_mhe.solver_options.nlp_solver_type = 'SQP' if solver_options is None else solver_options["solver_type"]
+        ocp_mhe.solver_options.nlp_solver_type = 'SQP_RTI'
         ocp_mhe.solver_options.qp_solver_warm_start = 1 # Warm Start
 
         # Path to where code will be exported
@@ -244,7 +242,7 @@ class QuadOptimizerMHE(QuadOptimizer):
         return ocp_mhe, nyx, nx, nu
 
 def main():
-    rospy.init_node("acados_compiler_mhe", anonymous=True)
+    rospy.init_node("acados_compiler_mhe", anonymous=True) 
     ns = rospy.get_namespace()
 
     # Load MHE parameters

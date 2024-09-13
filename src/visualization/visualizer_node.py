@@ -146,17 +146,19 @@ class VisualizerWrapper:
         # Data Sampled at 100Hz
         min_len = np.min((len(self.x_act), len(self.motor_thrusts)))
         # self.x_act = self.x_act[:min_len]
-        self.t_act = self.t_act - self.t_act[0]
         # self.motor_thrusts = self.motor_thrusts[:min_len]
 
-        self.w_control = self.w_control[:self.seq_len]
         while len(self.w_control) < self.seq_len:
             self.w_control = np.append(self.w_control, self.w_control[-1][np.newaxis], axis=0)
+        self.w_control = self.w_control[:self.seq_len]
         
+        self.t_act = self.t_act - self.t_act[0]
         while len(self.x_act) < self.seq_len * 2:
             self.x_act  = np.append(self.x_act, self.x_act[-1][np.newaxis], axis=0)
             self.t_act  = np.append(self.t_act, self.t_act[-1])
-
+        self.x_act = self.x_act[:self.seq_len * 2]
+        self.t_act = self.t_act[:self.seq_len * 2]
+        
         while len(self.motor_thrusts) < self.seq_len * 2:
             self.motor_thrusts = np.append(self.motor_thrusts, self.motor_thrusts[-1][np.newaxis], axis=0)
 
@@ -472,7 +474,7 @@ class VisualizerWrapper:
             # Create Directory
             safe_mkdir_recursive(self.mhe_dir)
             if self.timer is not None:
-                self.timer.shutdonw()
+                self.timer.shutdown()
                 self.timer = None
 
 def main():
