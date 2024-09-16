@@ -155,8 +155,8 @@ class QuadOptimizer:
             # Full state noise vector (13-dimensional)
             self.w = cs.vertcat(self.w, self.w_d)
 
-            f_thrust = self.u * self.quad.max_thrust / (self.quad.mass + self.k_m)
-            self.a = cs.vertcat(0.0, 0.0, (f_thrust[0] + f_thrust[1] + f_thrust[2] + f_thrust[3])) #a_thrust
+            f_thrust = self.u * self.quad.max_thrust 
+            self.a = cs.vertcat(0.0, 0.0, (f_thrust[0] + f_thrust[1] + f_thrust[2] + f_thrust[3])) / (self.quad.mass + self.k_m) #a_thrust
             # Full measurement state vector
             self.y = cs.vertcat(self.p, self.r, self.d)
         
@@ -337,6 +337,7 @@ class QuadOptimizer:
         """
         g = cs.vertcat(0.0, 0.0, 9.81)
         if mhe:
+            print(self.a)
             v_dynamics = v_dot_q(self.a, self.q) - g + self.w_v
         else:
             f_thrust = self.u * self.quad.max_thrust

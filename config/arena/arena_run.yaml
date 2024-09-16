@@ -8,7 +8,7 @@ pose_topic: "/mavros/vision_pose/pose"
 imu_topic: "/mavros/imu/data_raw"
 
 # Landing options
-land_z: 0.05
+land_z: 0.15
 land_dz: 0.15
 land_z_thr: 0.15
 

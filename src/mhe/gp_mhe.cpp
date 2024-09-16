@@ -95,7 +95,15 @@ void GP_MHE::setHistory(const Eigen::MatrixXd& y_history, const Eigen::MatrixXd&
 
             double u[NP] = {};
             Eigen::Map<Eigen::Matrix<double, NP, 1>> (&u[0], NP, 1) = u_history.row(i);
-            mhe_acados_update_params(acados_ocp_capsule_, i, &u[0], NP);
+            // for (int i = 0; i < 4; ++i) {
+            //     std::cout << u[i] * 8.7 / 0.795 << " ";
+            // }
+            // std::cout << std::endl;
+            // for (int i = 0; i < 4; ++i) {
+            //     std::cout << u[i] << " ";
+            // }
+            // std::cout << std::endl;
+            mhe_acados_update_params(acados_ocp_capsule_, i, u, NP);
         }
     }
 }

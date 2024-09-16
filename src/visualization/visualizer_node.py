@@ -71,12 +71,11 @@ class VisualizerWrapper:
         safe_mkdir_recursive(self.mpc_dir)
         # Create MHE Directory if MHE Type is given
         # else check every second
-        # if self.mhe_type is not None:
-        #     self.mhe_dataset_name = "%s_%smhe_%s"%(self.env, "k" if self.mhe_type=="kinematic" else "d", self.quad_name)
-        #     self.mhe_dir = os.path.join(self.results_dir, self.mhe_dataset_name)
-        #     safe_mkdir_recursive(self.mhe_dir)
-        #     self.timer = None
-        # else:
+        if self.mhe_type is not None:
+            self.mhe_dataset_name = "%s_%smhe_%s"%(self.env, "k" if self.mhe_type=="kinematic" else "d", self.quad_name)
+            self.mhe_dir = os.path.join(self.results_dir, self.mhe_dataset_name)
+            safe_mkdir_recursive(self.mhe_dir)
+
         self.timer = rospy.Timer(rospy.Duration(1), self.check_mhe_type)
 
         self.record = False
@@ -140,6 +139,9 @@ class VisualizerWrapper:
         self.record_sub = rospy.Subscriber(record_topic, Bool, self.record_callback, queue_size=10, tcp_nodelay=True)
 
         rospy.loginfo("Visualizer on standby listening...")
+        if self.mhe_type is not None:
+            rospy.loginfo("%s MHE detected"%self.mhe_type)
+
 
     def save_recording_data(self):
         # Remove Exceeding data entry if needed
@@ -162,6 +164,7 @@ class VisualizerWrapper:
         
         while len(self.motor_thrusts) < self.seq_len * 2:
             self.motor_thrusts = np.append(self.motor_thrusts, self.motor_thrusts[-1][np.newaxis], axis=0)
+        self.motor_thrusts = self.motor_thrusts[:self.seq_len * 2]
 
         if len(self.x_est) > 0:
             while len(self.x_est) < self.seq_len * 2:
@@ -185,7 +188,7 @@ class VisualizerWrapper:
             x0 = self.x_act[ii]
             xf = self.x_act[ii+1]
 
-            u = self.motor_thrusts[i]
+            u = self.motor_thrusts[ii]
             _u = np.append(u, [0]) # Considering there is no mass change
 
             dt = self.t_act[ii+1] - self.t_act[ii]
@@ -267,10 +270,10 @@ class VisualizerWrapper:
 
                 a_meas = self.y[i][6:9]
                 a_meas = np.stack(a_meas + v_dot_q(g, q_inv).T)
-                a_meas_traj[i] = np.squeeze(a_meas.T)
+                a_meas_traj[i] = np.squeeze(self.y[i][6:9])
 
                 # Model Accel Est
-                a_thrust = cs.vertcat(0, 0, (u[0] + u[1] + u[2] + u[3]) * self.quad.max_thrust / self.quad.mass)
+                a_thrust = cs.vertcat(0, 0, (u[0] + u[1] + u[2] + u[3]) * self.quad.max_thrust) / self.quad.mass
                 a_thrust_traj[i] = np.squeeze(a_thrust.T)
 
                 a_est_b = v_dot_q(v_dot_q(a_thrust, q) + g, q_inv)
@@ -476,7 +479,7 @@ class VisualizerWrapper:
         mhe_type = rospy.get_param("gp_mhe/mhe_type", default=None)
         if mhe_type is not None and self.mhe_type != mhe_type:
             self.mhe_type = mhe_type
-            print("Recording %s MHE".format(self.mhe_type))
+            rospy.loginfo("%s MHE detected"%self.mhe_type)
             self.mhe_dataset_name = "%s_%smhe_%s"%(self.env, "k" if self.mhe_type=="kinematic" else "d", self.quad_name)
             self.mhe_dir = os.path.join(self.results_dir, self.mhe_dataset_name)
             # Create Directory
