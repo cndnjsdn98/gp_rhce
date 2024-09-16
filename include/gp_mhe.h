@@ -53,6 +53,7 @@
 #define N_MOTORS 4
 
 #define IDX_Q_W 3
+#define IDX_A_Z 15
 
 #define IDX_POSITION_START 0
 #define IDX_RATE_START N_POSITION_STATES
@@ -83,7 +84,16 @@ private:
     
     // MHE Parameters
     std::string mhe_type_;
-    std::vector<double> yref_0_, yref_, gpy_corr_, x0_bar_, u_;
+    
+    // std::vector<double> yref_0_, yref_, gpy_corr_, x0_bar_, u_;
+
+    Eigen::Matrix<double, MHE_NX, 1> x0_bar_;
+    Eigen::Matrix<double, NY0, 1> yref_0_;
+    Eigen::Matrix<double, NY, 1> yref_;
+    Eigen::Matrix<double, NP, 1> u_;
+    Eigen::Matrix<double, 3, 1> gpy_corr_;  
+
+    // double x0_bar_[MHE_NX], yref_0_[NY0], yref_[NY], u_[NP];
     double optimization_dt_;
 
 public:
@@ -93,9 +103,9 @@ public:
     // Deconstructor
     ~GP_MHE();
 
-    int solveMHE(const std::vector<std::vector<double>>& y_history, const std::vector<std::vector<double>>& u_history);
-    void setHistory(const std::vector<std::vector<double>>& y_history, const std::vector<std::vector<double>>& u_history);
-    void getStateEst(std::vector<double>& x_est);
+    int solveMHE(Eigen::MatrixXd& y_history, Eigen::MatrixXd& u_history);
+    void setHistory(Eigen::MatrixXd& y_history, Eigen::MatrixXd& u_history);
+    void getStateEst(Eigen::VectorXd& x_est);
     double getOptimizationTime();
     int getMeasStateLen();
 };

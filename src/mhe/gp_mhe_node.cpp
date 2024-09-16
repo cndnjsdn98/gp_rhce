@@ -25,33 +25,33 @@ Node::Node(ros::NodeHandle& nh) {
     } 
 
     // Init vectors
-    x_est_.resize(MHE_NX);
+    x_est_ = VectorXd::Zero(MHE_NX);
     x_est_[IDX_Q_W] = 1;
-    p_.reserve(N_POSITION_STATES);
-    w_.reserve(N_RATE_STATES);
-    a_.reserve(N_ACCEL_STATES);
-    y_.resize(gp_mhe_->getMeasStateLen() + MHE_NU);
-    u_.resize(N_MOTORS);
-    y_hist_.resize(MHE_N, std::vector<double>(gp_mhe_->getMeasStateLen() + MHE_NU));
-    y_hist_cp_.resize(MHE_N, std::vector<double>(gp_mhe_->getMeasStateLen() + MHE_NU));
-    u_hist_.resize(MHE_N, std::vector<double>(N_MOTORS));
-    u_hist_cp_.resize(MHE_N, std::vector<double>(N_MOTORS));
+    p_ = VectorXd::Zero(N_POSITION_STATES);
+    w_ = VectorXd::Zero(N_RATE_STATES);
+    a_ = VectorXd::Zero(N_ACCEL_STATES);
+    y_ = VectorXd::Zero(gp_mhe_->getMeasStateLen() + MHE_NU);
+    u_ = VectorXd::Zero(N_MOTORS);
+    y_hist_ = MatrixXd::Zero(MHE_N, gp_mhe_->getMeasStateLen() + MHE_NU);
+    y_hist_cp_ = MatrixXd::Zero(MHE_N, gp_mhe_->getMeasStateLen() + MHE_NU);
+    u_hist_ = MatrixXd::Zero(MHE_N, N_MOTORS);
+    u_hist_cp_ = MatrixXd::Zero(MHE_N, N_MOTORS);
     if (mhe_type_ == "kinematic") {
-        acceleration_est_.resize(3);
+        acceleration_est_ = VectorXd::Zero(3);
     }
     
-    if (p_.empty()) {
+    if (p_.isZero()) {
         ROS_INFO("MHE: Waiting for Sensor Measurement...");
         ros::Rate rate(1);
-        while (p_.empty() && ros::ok()) {
+        while (p_.isZero() && ros::ok()) {
             ros::spinOnce();
             rate.sleep();
         }
     }
-    if (mhe_type_ == "dynamic" && u_.empty()) {
+    if (mhe_type_ == "dynamic" && u_.isZero()) {
         ROS_INFO("Motor Thrusts not received yet. Skipping time step...");
         ros::Rate rate(1);
-        while (u_.empty() && ros::ok()) {
+        while (u_.isZero() && ros::ok()) {
             ros::spinOnce();
             rate.sleep();
         }
@@ -123,25 +123,32 @@ void Node::initPublishers(ros::NodeHandle& nh) {
 
 void Node::imuCallback(const sensor_msgs::Imu::ConstPtr& msg) {
     // ROS_INFO("%.4f",msg->header.stamp.toSec());
-    if (p_.empty()) {
+    if (p_.isZero()) {
         // ROS_WARN("Position measurement not received yet. Skipping time step...");
         return;
     } 
-    if (mhe_type_ == "dynamic" && u_.empty()) {
+    if (mhe_type_ == "dynamic" && u_.isZero()) {
         return;
     }
 
     // Concatenate p, w, and a into y
-    w_ = {msg->angular_velocity.x, 
-          msg->angular_velocity.y, 
-          msg->angular_velocity.z};
-    std::copy(p_.begin(), p_.end(), y_.begin());
-    std::copy(w_.begin(), w_.end(), y_.begin() + IDX_RATE_START);
     if (mhe_type_ == "kinematic") {
-        a_ = {msg->linear_acceleration.x, 
+        y_ << p_[0],
+              p_[1],
+              p_[2],
+              msg->angular_velocity.x,
+              msg->angular_velocity.y,
+              msg->angular_velocity.z,
+              msg->linear_acceleration.x, 
               msg->linear_acceleration.y, 
-              msg->linear_acceleration.z};
-        std::copy(a_.begin(), a_.end(), y_.begin() + IDX_ACCEL_START);
+              msg->linear_acceleration.z;
+    } else {
+        y_ << p_[0],
+              p_[1],
+              p_[2],
+              msg->angular_velocity.x,
+              msg->angular_velocity.y,
+              msg->angular_velocity.z;
     }
 
 
@@ -156,28 +163,26 @@ void Node::imuCallback(const sensor_msgs::Imu::ConstPtr& msg) {
     lock_.lock();
     // Fill empty vectors with current sensor measurements and motor thrust
     if (!hist_received_) {
-        for (auto& row: y_hist_) {
-            std::copy(y_.begin(), y_.end(), row.begin());
-        }
-        for (auto& row: u_hist_) {
-            std::copy(u_.begin(), u_.end(), row.begin());
+        for (int i = 0; i < MHE_N; ++i) {
+            y_hist_.row(i) = y_;
+            u_hist_.row(i) = u_;
         }
         hist_received_ = true;
     }
 
     // Shift all elements to the left once
-    std::rotate(y_hist_.begin(), y_hist_.begin() + 1, y_hist_.end());
-    std::rotate(u_hist_.begin(), u_hist_.begin() + 1, u_hist_.end());
+    y_hist_.block(0, 0, MHE_N-1, y_hist_.cols()) = y_hist_.block(1, 0, MHE_N-1, y_hist_.cols());
+    u_hist_.block(0, 0, MHE_N-1, u_hist_.cols()) = u_hist_.block(1, 0, MHE_N-1, u_hist_.cols());
     // Insert the new element at the last position
-    y_hist_[MHE_N-1] = y_;
-    u_hist_[MHE_N-1] = u_;
+    y_hist_.row(MHE_N-1) = y_;
+    u_hist_.row(MHE_N-1) = u_;
 
     // Add current measurement to array and also add the number of missed measurements to be up to sync
     for (int i = 0; i < skipped_messages; ++i) {
-        std::rotate(y_hist_.begin(), y_hist_.begin() + 1, y_hist_.end());
-        std::rotate(u_hist_.begin(), u_hist_.begin() + 1, u_hist_.end());
-        y_hist_[MHE_N-1] = y_;
-        u_hist_[MHE_N-1] = u_;
+        y_hist_.block(0, 0, MHE_N-1, y_hist_.cols()) = y_hist_.block(1, 0, MHE_N-1, y_hist_.cols());
+        u_hist_.block(0, 0, MHE_N-1, u_hist_.cols()) = u_hist_.block(1, 0, MHE_N-1, u_hist_.cols());
+        y_hist_.row(MHE_N-1) = y_;
+        u_hist_.row(MHE_N-1) = u_;
     }
     lock_.unlock();
 
@@ -201,19 +206,22 @@ void Node::recordMheCallback(const std_msgs::Bool::ConstPtr& msg) {
 }
 
 void Node::motorThrustCallback(const mav_msgs::Actuators::ConstPtr& msg) {
-    u_ = msg-> angular_velocities;
+    u_ << msg->angular_velocities[0],
+          msg->angular_velocities[1],
+          msg->angular_velocities[2],
+          msg->angular_velocities[3];
 }
 
 void Node::poseCallback(const geometry_msgs::PoseStamped::ConstPtr& msg) {
-    p_ = {msg->pose.position.x, 
+    p_ << msg->pose.position.x, 
           msg->pose.position.y, 
-          msg->pose.position.z};
+          msg->pose.position.z;
 }
 
 void Node::odomGzCallback(const nav_msgs::Odometry::ConstPtr& msg) {
-    p_ = {msg->pose.pose.position.x,
+    p_ << msg->pose.pose.position.x,
           msg->pose.pose.position.y,
-          msg->pose.pose.position.z};     
+          msg->pose.pose.position.z;
 }
 
 void Node::runMHE() {
@@ -236,7 +244,8 @@ void Node::runMHE() {
     }  
 
     if (mhe_type_ == "kinematic") {
-        std::copy(x_est_.begin() + 13, x_est_.end(), acceleration_est_.begin());
+        // std::copy(x_est_.begin() + 13, x_est_.end(), acceleration_est_.begin());
+        acceleration_est_ = x_est_.segment(MHE_NX - N_ACCEL_STATES, N_ACCEL_STATES);
         sensor_msgs::Imu acceleration_est_msg;
         acceleration_est_msg.header.stamp = ros::Time::now();
         acceleration_est_msg.header.seq = mhe_seq_num_;
@@ -253,22 +262,22 @@ void Node::runMHE() {
     state_est_msg.header.frame_id = "world";
     state_est_msg.child_frame_id = quad_name_ + "/base_link";
 
-    state_est_msg.pose.pose.position.x = x_est_[0];
-    state_est_msg.pose.pose.position.y = x_est_[1];
-    state_est_msg.pose.pose.position.z = x_est_[2];
+    state_est_msg.pose.pose.position.x = x_est_(0);
+    state_est_msg.pose.pose.position.y = x_est_(1);
+    state_est_msg.pose.pose.position.z = x_est_(2);
 
-    state_est_msg.pose.pose.orientation.w = x_est_[3];
-    state_est_msg.pose.pose.orientation.x = x_est_[4];
-    state_est_msg.pose.pose.orientation.y = x_est_[5];
-    state_est_msg.pose.pose.orientation.z = x_est_[6];
+    state_est_msg.pose.pose.orientation.w = x_est_(3);
+    state_est_msg.pose.pose.orientation.x = x_est_(4);
+    state_est_msg.pose.pose.orientation.y = x_est_(5);
+    state_est_msg.pose.pose.orientation.z = x_est_(6);
 
-    state_est_msg.twist.twist.linear.x = x_est_[7];
-    state_est_msg.twist.twist.linear.y = x_est_[8];
-    state_est_msg.twist.twist.linear.z = x_est_[9];
+    state_est_msg.twist.twist.linear.x = x_est_(7);
+    state_est_msg.twist.twist.linear.y = x_est_(8);
+    state_est_msg.twist.twist.linear.z = x_est_(9);
 
-    state_est_msg.twist.twist.angular.x = x_est_[10];
-    state_est_msg.twist.twist.angular.y = x_est_[11];
-    state_est_msg.twist.twist.angular.z = x_est_[12];
+    state_est_msg.twist.twist.angular.x = x_est_(10);
+    state_est_msg.twist.twist.angular.y = x_est_(11);
+    state_est_msg.twist.twist.angular.z = x_est_(12);
     state_est_pub_.publish(state_est_msg);
     return;
 }

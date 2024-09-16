@@ -56,16 +56,16 @@ class QuadOptimizerMHE(QuadOptimizer):
             # State noise std
             # System Noise
             w_p = np.ones((1,3)) * 0.004
-            w_q = np.ones((1,3)) * np.deg2rad(0.0001)
-            w_v = np.array([[3, 3, 3]]) * 0.005            # w_v = np.ones((1,3)) * 1
-            w_r = np.ones((1,3)) * np.deg2rad(0.5)
+            w_q = np.ones((1,3)) * 0.01
+            w_v = np.ones((1,3)) * 0.005            # w_v = np.ones((1,3)) * 1
+            w_r = np.ones((1,3)) * 0.5
             w_d = np.ones((1,3)) * 0.00001 # 0.0000001
             w_a = np.ones((1,3)) * 0.05
             w_m = np.ones((1,1)) * 0.0001
             if mhe_type == "kinematic":
                 q_mhe = 1/np.squeeze(np.hstack((w_p, w_q, w_v, w_r, w_a)))
             elif mhe_type == "dynamic":
-                if self.mhe_with_gpyTorch:
+                if not self.mhe_with_gpyTorch:
                     if change_mass != 0:
                         q_mhe = 1/np.squeeze(np.hstack((w_p, w_q, w_v, w_r, w_m)))
                     else:
@@ -79,14 +79,13 @@ class QuadOptimizerMHE(QuadOptimizer):
             # Measurement noise std
             # Measurement Noise
             v_p = np.ones((1,3)) * 0.002                 # Position (vicon)
-            v_r = np.array([[10, 1, 1]]) * 1.218e-06
-            # v_r = np.ones((1,3)) * 1.218e-01    # Angular Velocity
-            v_a = np.ones((1,3)) * 8.999e-05                # Acceleration
+            v_r = np.ones((1,3)) * 1e-06    # Angular Velocity
+            v_a = np.ones((1,3)) * 1e-05                # Acceleration
             v_d = np.ones((1,3)) * 0.0001            # Disturbance
             # Inverse covariance
             if mhe_type == "dynamic" and self.mhe_with_gpyTorch:
                 r_mhe = 1/np.squeeze(np.hstack((v_p, v_r, v_d))) 
-            elif mhe_type == "dynamic" and self.mhe_with_gpyTorch:
+            elif mhe_type == "dynamic" and not self.mhe_with_gpyTorch:
                 r_mhe = 1/np.squeeze(np.hstack((v_p, v_r)))
             else:
                 r_mhe = 1/np.squeeze(np.hstack((v_p, v_r, v_a))) 
@@ -305,7 +304,7 @@ def main():
 def init_compile():
     quad_name = "clark"
     quad = custom_quad_param_loader(quad_name)
-    quad_opt = QuadOptimizerMHE(quad)
+    quad_opt = QuadOptimizerMHE(quad, mhe_type='dynamic')
 
 if __name__ == "__main__":
     main()

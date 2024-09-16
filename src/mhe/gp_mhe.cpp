@@ -31,23 +31,29 @@ GP_MHE::GP_MHE(std::string& mhe_type) {
 
     // Initialize MHE parameters
     mhe_type_ = mhe_type;
-    gpy_corr_ = {0, 0, 0};
+    // gpy_corr_.setZero();
     if (mhe_type_ == "kinematic") {
-        x0_bar_ = {0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9.81};
+        x0_bar_ << 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9.81;
+        // x0_bar_[IDX_Q_W] = 1;
+        // x0_bar_[IDX_A_Z] = 9.81;
         n_meas_states_ = N_POSITION_STATES + N_RATE_STATES + N_ACCEL_STATES;
     } else if (mhe_type_ == "dynamic") {
-        x0_bar_ = {0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+        x0_bar_ << 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0;
+        // x0_bar_[IDX_Q_W] = 1;
         n_meas_states_ = N_POSITION_STATES + N_RATE_STATES;
     }
 
     for (int i = 0; i < MHE_N; ++i ) {
-        ocp_nlp_out_set(nlp_config_, nlp_dims_, nlp_out_, i, "x", reinterpret_cast<void*>(x0_bar_.data()));  
+        ocp_nlp_out_set(nlp_config_, nlp_dims_, nlp_out_, i, "x", &x0_bar_);  
     }
 
-    // x0_bar_.resize(MHE_NX);
-    yref_0_.resize(NY0);
-    yref_.resize(NY);
-    u_.resize(NP);
+    yref_0_.setZero();
+    yref_.setZero();
+    u_.setZero();
+
+    // std::fill_n(yref_0_, NY0, 0.0);
+    // std::fill_n(yref_, NY, 0);
+    // std::fill_n(u_, NP, 0);
 }   
 
 // Deconstructor
@@ -55,27 +61,30 @@ GP_MHE::~GP_MHE() {
     mhe_acados_free_capsule(acados_ocp_capsule_);
 }
 
-void GP_MHE::setHistory(const std::vector<std::vector<double>>& y_history,const std::vector<std::vector<double>>& u_history) {
-    std::copy(y_history[0].begin(), y_history[0].end(), yref_0_.begin());
-    // std::fill(yref_0_.begin() + n_meas_states_, yref_0_.begin() + n_meas_states_ + MHE_NU, 0);
-    std::copy(x0_bar_.begin(), x0_bar_.end(), yref_0_.begin() + n_meas_states_ + MHE_NU);
-    ocp_nlp_cost_model_set(nlp_config_, nlp_dims_, nlp_in_, 0, "yref", reinterpret_cast<void*>(yref_0_.data()));
+void GP_MHE::setHistory(Eigen::MatrixXd& y_history, Eigen::MatrixXd& u_history) {
+    yref_0_ = y_history.row(0);
+    yref_0_.segment(n_meas_states_ + MHE_NU, MHE_NX) = x0_bar_;
+    // Eigen::Map<Eigen::Matrix<double, NY, 1>> (&yref_0_[0], n_meas_states_, 1) = y_history.row(0);
+    // Eigen::Map<Eigen::Matrix<double, NY, 1>> (&yref_0_[n_meas_states_+MHE_NU], NX, 1) = y_history.row(0);
+
+    ocp_nlp_cost_model_set(nlp_config_, nlp_dims_, nlp_in_, 0, "yref", &yref_0_);
     
     for (int i = 1; i < MHE_N; ++i) { 
-        std::copy(y_history[i].begin(), y_history[i].end(), yref_.begin());
-        // std::fill(yref_.begin() + n_meas_states_, yref_.begin() + n_meas_states_ + MHE_NU, 0);
-        ocp_nlp_cost_model_set(nlp_config_, nlp_dims_, nlp_in_, i, "yref", reinterpret_cast<void*>(yref_.data()));
+        // double yref[NY];
+        // std::fill_n(yref, NY, 0);
+        // Eigen::Map<Eigen::Matrix<double, NY, 1>> (&yref[0], n_meas_states_, 1) = y_history.row(i);
+        yref_ = y_history.row(i);
+        ocp_nlp_cost_model_set(nlp_config_, nlp_dims_, nlp_in_, i, "yref", &yref_);
     }
 
     if (mhe_type_ == "dynamic") {
         for (int i = 0; i < MHE_N; ++i) { 
-            std::copy(u_history[i].begin(), u_history[i].end(), u_.begin());
-            mhe_acados_update_params(acados_ocp_capsule_, i, reinterpret_cast<double*>(u_.data()), u_.size());
+            mhe_acados_update_params(acados_ocp_capsule_, i, u_history.row(i).data(), u_history.row(i).size());
         }
     }
 }
 
-int GP_MHE::solveMHE(const std::vector<std::vector<double>>& y_history,const std::vector<std::vector<double>>& u_history) {
+int GP_MHE::solveMHE(Eigen::MatrixXd& y_history, Eigen::MatrixXd& u_history) {
     // Set the history values
     setHistory(y_history, u_history);
     // Solve MHE
@@ -89,7 +98,7 @@ int GP_MHE::solveMHE(const std::vector<std::vector<double>>& y_history,const std
     return status_;
 }
 
-void GP_MHE::getStateEst(std::vector<double>& x_est) {
+void GP_MHE::getStateEst(Eigen::VectorXd& x_est) {
     ocp_nlp_out_get(nlp_config_, nlp_dims_, nlp_out_, MHE_N, "x", &x_est[0]);
 }
 
