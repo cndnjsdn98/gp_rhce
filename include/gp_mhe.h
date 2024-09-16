@@ -59,6 +59,8 @@
 #define IDX_RATE_START N_POSITION_STATES
 #define IDX_ACCEL_START N_POSITION_STATES + N_RATE_STATES
 
+#define N_KIN_MEAS_STATES N_POSITION_STATES + N_RATE_STATES + N_ACCEL_STATES
+#define N_DYN_MEAS_STATES N_POSITION_STATES + N_RATE_STATES
 class GP_MHE {
 private:
     // acados_ocp_capsule
@@ -84,7 +86,7 @@ private:
     
     // MHE Parameters
     std::string mhe_type_;
-    
+
     // std::vector<double> yref_0_, yref_, gpy_corr_, x0_bar_, u_;
 
     Eigen::Matrix<double, MHE_NX, 1> x0_bar_;
@@ -103,8 +105,8 @@ public:
     // Deconstructor
     ~GP_MHE();
 
-    int solveMHE(Eigen::MatrixXd& y_history, Eigen::MatrixXd& u_history);
-    void setHistory(Eigen::MatrixXd& y_history, Eigen::MatrixXd& u_history);
+    int solveMHE(const Eigen::MatrixXd& y_history, const Eigen::MatrixXd& u_history);
+    void setHistory(const Eigen::MatrixXd& y_history, const Eigen::MatrixXd& u_history);
     void getStateEst(Eigen::VectorXd& x_est);
     double getOptimizationTime();
     int getMeasStateLen();

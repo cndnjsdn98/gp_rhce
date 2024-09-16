@@ -61,30 +61,46 @@ GP_MHE::~GP_MHE() {
     mhe_acados_free_capsule(acados_ocp_capsule_);
 }
 
-void GP_MHE::setHistory(Eigen::MatrixXd& y_history, Eigen::MatrixXd& u_history) {
-    yref_0_ = y_history.row(0);
-    yref_0_.segment(n_meas_states_ + MHE_NU, MHE_NX) = x0_bar_;
-    // Eigen::Map<Eigen::Matrix<double, NY, 1>> (&yref_0_[0], n_meas_states_, 1) = y_history.row(0);
-    // Eigen::Map<Eigen::Matrix<double, NY, 1>> (&yref_0_[n_meas_states_+MHE_NU], NX, 1) = y_history.row(0);
+void GP_MHE::setHistory(const Eigen::MatrixXd& y_history, const Eigen::MatrixXd& u_history) {
+    // yref_0_ = y_history.row(0);
+    // yref_0_.segment(n_meas_states_ + MHE_NU, MHE_NX) = x0_bar_;
 
-    ocp_nlp_cost_model_set(nlp_config_, nlp_dims_, nlp_in_, 0, "yref", &yref_0_);
+    double yref_0[NY0] = {};    
+    if (mhe_type_ == "kinematic") {
+        Eigen::Map<Eigen::Matrix<double, N_KIN_MEAS_STATES, 1>> (&yref_0[0], N_KIN_MEAS_STATES, 1) = y_history.row(0);
+        Eigen::Map<Eigen::Matrix<double, NX, 1>> (&yref_0[N_KIN_MEAS_STATES+MHE_NU], NX, 1) = x0_bar_;
+    } else {
+        Eigen::Map<Eigen::Matrix<double, N_DYN_MEAS_STATES, 1>> (&yref_0[0], N_DYN_MEAS_STATES, 1) = y_history.row(0);
+        Eigen::Map<Eigen::Matrix<double, NX, 1>> (&yref_0[N_DYN_MEAS_STATES+MHE_NU], NX, 1) = x0_bar_;
+    }
+
+    ocp_nlp_cost_model_set(nlp_config_, nlp_dims_, nlp_in_, 0, "yref", &yref_0);
     
     for (int i = 1; i < MHE_N; ++i) { 
-        // double yref[NY];
-        // std::fill_n(yref, NY, 0);
-        // Eigen::Map<Eigen::Matrix<double, NY, 1>> (&yref[0], n_meas_states_, 1) = y_history.row(i);
-        yref_ = y_history.row(i);
-        ocp_nlp_cost_model_set(nlp_config_, nlp_dims_, nlp_in_, i, "yref", &yref_);
+        // yref_ = y_history.row(i);
+
+        double yref[NY] = {};
+        std::fill_n(yref, NY, 0);
+        if (mhe_type_ == "kinematic") {
+            Eigen::Map<Eigen::Matrix<double, N_KIN_MEAS_STATES, 1>> (&yref[0], N_KIN_MEAS_STATES, 1) = y_history.row(i);
+        } else {
+            Eigen::Map<Eigen::Matrix<double, N_DYN_MEAS_STATES, 1>> (&yref[0], N_DYN_MEAS_STATES, 1) = y_history.row(i);
+        }
+        ocp_nlp_cost_model_set(nlp_config_, nlp_dims_, nlp_in_, i, "yref", &yref);
     }
 
     if (mhe_type_ == "dynamic") {
         for (int i = 0; i < MHE_N; ++i) { 
-            mhe_acados_update_params(acados_ocp_capsule_, i, u_history.row(i).data(), u_history.row(i).size());
+            // u_ = u_history.row(i);
+
+            double u[NP] = {};
+            Eigen::Map<Eigen::Matrix<double, NP, 1>> (&u[0], NP, 1) = u_history.row(i);
+            mhe_acados_update_params(acados_ocp_capsule_, i, &u[0], NP);
         }
     }
 }
 
-int GP_MHE::solveMHE(Eigen::MatrixXd& y_history, Eigen::MatrixXd& u_history) {
+int GP_MHE::solveMHE(const Eigen::MatrixXd& y_history, const Eigen::MatrixXd& u_history) {
     // Set the history values
     setHistory(y_history, u_history);
     // Solve MHE

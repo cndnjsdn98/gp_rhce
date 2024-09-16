@@ -71,13 +71,13 @@ class VisualizerWrapper:
         safe_mkdir_recursive(self.mpc_dir)
         # Create MHE Directory if MHE Type is given
         # else check every second
-        if self.mhe_type is not None:
-            self.mhe_dataset_name = "%s_%smhe_%s"%(self.env, "k" if self.mhe_type=="kinematic" else "d", self.quad_name)
-            self.mhe_dir = os.path.join(self.results_dir, self.mhe_dataset_name)
-            safe_mkdir_recursive(self.mhe_dir)
-            self.timer = None
-        else:
-            self.timer = rospy.Timer(rospy.Duration(1), self.check_mhe_type)
+        # if self.mhe_type is not None:
+        #     self.mhe_dataset_name = "%s_%smhe_%s"%(self.env, "k" if self.mhe_type=="kinematic" else "d", self.quad_name)
+        #     self.mhe_dir = os.path.join(self.results_dir, self.mhe_dataset_name)
+        #     safe_mkdir_recursive(self.mhe_dir)
+        #     self.timer = None
+        # else:
+        self.timer = rospy.Timer(rospy.Duration(1), self.check_mhe_type)
 
         self.record = False
 
@@ -152,9 +152,10 @@ class VisualizerWrapper:
             self.w_control = np.append(self.w_control, self.w_control[-1][np.newaxis], axis=0)
         self.w_control = self.w_control[:self.seq_len]
         
-        self.t_act = self.t_act - self.t_act[0]
         while len(self.x_act) < self.seq_len * 2:
             self.x_act  = np.append(self.x_act, self.x_act[-1][np.newaxis], axis=0)
+        self.t_act = self.t_act - self.t_act[0]
+        while len(self.t_act) < self.seq_len * 2:
             self.t_act  = np.append(self.t_act, self.t_act[-1])
         self.x_act = self.x_act[:self.seq_len * 2]
         self.t_act = self.t_act[:self.seq_len * 2]
@@ -163,9 +164,10 @@ class VisualizerWrapper:
             self.motor_thrusts = np.append(self.motor_thrusts, self.motor_thrusts[-1][np.newaxis], axis=0)
 
         if len(self.x_est) > 0:
-            self.t_est = self.t_est - self.t_est[0]
             while len(self.x_est) < self.seq_len * 2:
                 self.x_est = np.append(self.x_est, self.x_est[-1][np.newaxis], axis=0)
+            self.t_est = self.t_est - self.t_est[0]
+            while len(self.t_est) < self.seq_len * 2:
                 self.t_est = np.append(self.t_est, self.t_est[-1])
             self.x_est = self.x_est[:self.seq_len * 2]
             self.t_est = self.t_est[:self.seq_len * 2]
@@ -236,14 +238,18 @@ class VisualizerWrapper:
             #     self.t_est = np.append(self.t_est, self.t_est[-1])
 
             if len(self.t_acc_est) > 0:
-                self.t_acc_est = self.t_acc_est - self.t_acc_est[0]
                 while len(self.accel_est) < self.seq_len * 2:
                     self.accel_est = np.append(self.accel_est, self.accel_est[-1][np.newaxis], axis=0)
+                self.t_acc_est = self.t_acc_est - self.t_acc_est[0]
+                while len(self.t_acc_est) < self.seq_len * 2:
                     self.t_acc_est = np.append(self.t_acc_est, self.t_acc_est[-1])
+                self.accel_est = self.accel_est[:self.seq_len * 2]
+                self.t_acc_est = self.t_acc_est[:self.seq_len * 2]
 
-            self.t_imu = self.t_imu - self.t_imu[0]
             while len(self.y) < self.seq_len * 2:
                 self.y = np.append(self.y, self.y[-1][np.newaxis], axis=0)
+            self.t_imu = self.t_imu - self.t_imu[0]
+            while len(self.t_imu) < self.seq_len * 2:
                 self.t_imu = np.append(self.t_imu, self.t_imu[-1])
             self.y = self.y[:self.seq_len * 2]
             self.t_imu = self.t_imu[:self.seq_len * 2]
@@ -467,15 +473,14 @@ class VisualizerWrapper:
         self.record = msg.data
 
     def check_mhe_type(self, event):
-        self.mhe_type = rospy.get_param("gp_mhe/mhe_type", default=None)
-        if self.mhe_type is not None:
+        mhe_type = rospy.get_param("gp_mhe/mhe_type", default=None)
+        if mhe_type is not None and self.mhe_type != mhe_type:
+            self.mhe_type = mhe_type
+            print("Recording %s MHE".format(self.mhe_type))
             self.mhe_dataset_name = "%s_%smhe_%s"%(self.env, "k" if self.mhe_type=="kinematic" else "d", self.quad_name)
             self.mhe_dir = os.path.join(self.results_dir, self.mhe_dataset_name)
             # Create Directory
             safe_mkdir_recursive(self.mhe_dir)
-            if self.timer is not None:
-                self.timer.shutdown()
-                self.timer = None
 
 def main():
     rospy.init_node("visualizer")
