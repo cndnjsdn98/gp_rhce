@@ -98,26 +98,29 @@ void Node::initLaunchParameters(ros::NodeHandle& nh) {
 }
 
 void Node::initSubscribers(ros::NodeHandle& nh) {
+    ros::TransportHints transport_hints;
+    transport_hints.tcpNoDelay(true);
+    
     if (environment_ == "gazebo") {
         // Gazebo specific Subscribers
         odom_gz_sub_ = nh.subscribe<nav_msgs::Odometry> (
-            odom_gz_topic_, 5, &Node::odomGzCallback, this);
+            odom_gz_topic_, 10, &Node::odomGzCallback, this, transport_hints=transport_hints);
     }
     // Init Subscribers
     motor_thrust_sub_ = nh.subscribe<mav_msgs::Actuators> (
-        motor_thrust_topic_, 5, &Node::motorThrustCallback, this);
+        motor_thrust_topic_, 10, &Node::motorThrustCallback, this, transport_hints=transport_hints);
     pose_sub_ = nh.subscribe<geometry_msgs::PoseStamped> (
-        pose_topic_, 5, &Node::poseCallback, this);
+        pose_topic_, 10, &Node::poseCallback, this, transport_hints=transport_hints);
     record_sub_ = nh.subscribe<std_msgs::Bool> (
-        record_topic_, 5, &Node::recordMheCallback, this);
+        record_topic_, 10, &Node::recordMheCallback, this, transport_hints=transport_hints);
     imu_sub_ = nh.subscribe<sensor_msgs::Imu> (
-            imu_topic_, 5, &Node::imuCallback, this);
+            imu_topic_, 3, &Node::imuCallback, this, transport_hints=transport_hints);
     
 }
 
 void Node::initPublishers(ros::NodeHandle& nh) {
-    acceleration_est_pub_ = nh.advertise<sensor_msgs::Imu> (acceleration_est_topic_, 5, true);
-    state_est_pub_ = nh.advertise<nav_msgs::Odometry> (state_est_topic_, 5, true);
+    acceleration_est_pub_ = nh.advertise<sensor_msgs::Imu> (acceleration_est_topic_, 10, true);
+    state_est_pub_ = nh.advertise<nav_msgs::Odometry> (state_est_topic_, 10, true);
 }
 
 
@@ -234,7 +237,7 @@ void Node::runMHE() {
         if (gp_mhe_->solveMHE(y_hist_cp_, u_hist_cp_) == ACADOS_SUCCESS) {
             gp_mhe_->getStateEst(x_est_);
             optimization_dt_ += gp_mhe_->getOptimizationTime();
-            mhe_idx_++;
+            ++mhe_idx_;
         } else {
             ROS_WARN("Tried to run an MHE optimization but was unsuccessful.");
         }  
@@ -294,6 +297,11 @@ int main(int argc, char** argv) {
 
     // keep spinning while ROS is running
     ros::spin();
+    // ros::Rate rate(100);
+    // while (ros::ok()) {
+    //     ros::spinOnce();
+    //     rate.sleep();
+    // }
 
     return 0;
 }

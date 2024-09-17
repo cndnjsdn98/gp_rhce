@@ -112,9 +112,6 @@ class VisualizerWrapper:
         self.a_meas = None
 
         # Subscriber topic names
-        # Note: groundtruth measurements will be coming from pose+twist (arena) or odom_gz (gazebo)
-        pose_topic = rospy.get_param("/gp_mhe/pose_topic", default = "/mocap/" + self.quad_name + "/pose")
-        twist_topic = rospy.get_param("/gp_mhe/twist_topic", default ="/mocap/" + self.quad_name + "/twist")
         odom_topic = rospy.get_param("/gp_mhe/odom_topic", default = "/" + self.quad_name + "/ground_truth/odometry")
         imu_topic = rospy.get_param("/gp_mhe/imu_topic", default = "/mavros/imu/data_raw") 
         state_est_topic = rospy.get_param("/gp_mhe/state_est_topic", default = "/" + self.quad_name + "/state_est")
@@ -126,8 +123,6 @@ class VisualizerWrapper:
         record_topic = rospy.get_param("/gp_mpc/record_topic", default = "/" + self.quad_name + "/record")
 
         # Subscribers
-        # self.pose_sub = rospy.Subscriber(pose_topic, PoseStamped, self.pose_callback, queue_size=10, tcp_nodelay=True)
-        # self.twist_sub = rospy.Subscriber(twist_topic, TwistStamped, self.twist_callback, queue_size=10, tcp_nodelay=True)
         self.imu_sub = rospy.Subscriber(imu_topic, Imu, self.imu_callback, queue_size=10, tcp_nodelay=True)
         self.motor_thrust_sub = rospy.Subscriber(motor_thrust_topic, Actuators, self.motor_thrust_callback, queue_size=10, tcp_nodelay=True)
         self.odom_sub = rospy.Subscriber(odom_topic, Odometry, self.odom_callback, queue_size=10, tcp_nodelay=True)
