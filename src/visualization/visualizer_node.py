@@ -64,6 +64,7 @@ class VisualizerWrapper:
             't_mhe': self.t_mhe,
             'n_mhe': self.n_mhe,
             'with_gp': self.mhe_with_gp,
+            'mhe_type': self.mhe_type
         }
         # Create MPC Directory
         self.mpc_dataset_name = "%s_mpc_%s%s"%(self.env, "gt_" if self.use_groundtruth else "", self.quad_name)
@@ -76,7 +77,8 @@ class VisualizerWrapper:
             self.mhe_dir = os.path.join(self.results_dir, self.mhe_dataset_name)
             safe_mkdir_recursive(self.mhe_dir)
 
-        self.timer = rospy.Timer(rospy.Duration(1), self.check_mhe_type)
+        self.timer_mhe_type = rospy.Timer(rospy.Duration(1), self.check_mhe_type)
+        self.timer_use_gt = rospy.Timer(rospy.Duration(1), self.check_use_gt)
 
         self.record = False
 
@@ -123,15 +125,15 @@ class VisualizerWrapper:
         record_topic = rospy.get_param("/gp_mpc/record_topic", default = "/" + self.quad_name + "/record")
 
         # Subscribers
-        self.imu_sub = rospy.Subscriber(imu_topic, Imu, self.imu_callback, queue_size=10, tcp_nodelay=True)
-        self.motor_thrust_sub = rospy.Subscriber(motor_thrust_topic, Actuators, self.motor_thrust_callback, queue_size=10, tcp_nodelay=True)
-        self.odom_sub = rospy.Subscriber(odom_topic, Odometry, self.odom_callback, queue_size=10, tcp_nodelay=True)
-        self.state_est_sub = rospy.Subscriber(state_est_topic, Odometry, self.state_est_callback, queue_size=10, tcp_nodelay=True)
-        self.acceleration_est_sub = rospy.Subscriber(acceleration_est_topic, Imu, self.acceleration_est_callback, queue_size=10, tcp_nodelay=True)
-        self.ref_sub = rospy.Subscriber(ref_topic, ReferenceTrajectory, self.ref_callback, queue_size=10, tcp_nodelay=True)
-        self.control_sub = rospy.Subscriber(control_topic, AttitudeTarget, self.control_callback, queue_size=10, tcp_nodelay=True)
-        self.control_gz_sub = rospy.Subscriber(control_gz_topic, ControlCommand, self.control_gz_callback, queue_size=10, tcp_nodelay=True)
-        self.record_sub = rospy.Subscriber(record_topic, Bool, self.record_callback, queue_size=10, tcp_nodelay=True)
+        self.imu_sub = rospy.Subscriber(imu_topic, Imu, self.imu_callback, queue_size=10, tcp_nodelay=False)
+        self.motor_thrust_sub = rospy.Subscriber(motor_thrust_topic, Actuators, self.motor_thrust_callback, queue_size=10, tcp_nodelay=False)
+        self.odom_sub = rospy.Subscriber(odom_topic, Odometry, self.odom_callback, queue_size=10, tcp_nodelay=False)
+        self.state_est_sub = rospy.Subscriber(state_est_topic, Odometry, self.state_est_callback, queue_size=10, tcp_nodelay=False)
+        self.acceleration_est_sub = rospy.Subscriber(acceleration_est_topic, Imu, self.acceleration_est_callback, queue_size=10, tcp_nodelay=False)
+        self.ref_sub = rospy.Subscriber(ref_topic, ReferenceTrajectory, self.ref_callback, queue_size=10, tcp_nodelay=False)
+        self.control_sub = rospy.Subscriber(control_topic, AttitudeTarget, self.control_callback, queue_size=10, tcp_nodelay=False)
+        self.control_gz_sub = rospy.Subscriber(control_gz_topic, ControlCommand, self.control_gz_callback, queue_size=10, tcp_nodelay=False)
+        self.record_sub = rospy.Subscriber(record_topic, Bool, self.record_callback, queue_size=10, tcp_nodelay=False)
 
         rospy.loginfo("Visualizer on standby listening...")
         if self.mhe_type is not None:
@@ -140,11 +142,6 @@ class VisualizerWrapper:
 
     def save_recording_data(self):
         # Remove Exceeding data entry if needed
-        # Data Sampled at 100Hz
-        min_len = np.min((len(self.x_act), len(self.motor_thrusts)))
-        # self.x_act = self.x_act[:min_len]
-        # self.motor_thrusts = self.motor_thrusts[:min_len]
-
         while len(self.w_control) < self.seq_len:
             self.w_control = np.append(self.w_control, self.w_control[-1][np.newaxis], axis=0)
         self.w_control = self.w_control[:self.seq_len]
@@ -460,15 +457,14 @@ class VisualizerWrapper:
         if not self.record and msg.data == True:
             # Recording has begun
             rospy.loginfo("Recording...")     
+            self.record = True
 
         if self.record and msg.data == False:
             # Recording ended
-            self.record = msg.data
+            self.record = False
             # Run thread for saving the recorded data
             _save_record_thread = threading.Thread(target=self.save_recording_data(), args=(), daemon=True)
             _save_record_thread.start()
-
-        self.record = msg.data
 
     def check_mhe_type(self, event):
         mhe_type = rospy.get_param("gp_mhe/mhe_type", default=None)
@@ -477,8 +473,21 @@ class VisualizerWrapper:
             rospy.loginfo("%s MHE detected"%self.mhe_type)
             self.mhe_dataset_name = "%s_%smhe_%s"%(self.env, "k" if self.mhe_type=="kinematic" else "d", self.quad_name)
             self.mhe_dir = os.path.join(self.results_dir, self.mhe_dataset_name)
+            self.mhe_meta['mhe_type'] = self.mhe_type
             # Create Directory
             safe_mkdir_recursive(self.mhe_dir)
+    
+    def check_use_gt(self, event):
+        use_groundtruth = rospy.get_param("gp_mpc/use_groundtruth", default=None)
+        if use_groundtruth is not None and self.use_groundtruth != use_groundtruth:
+            self.use_groundtruth = use_groundtruth
+            rospy.loginfo("%sUsing Groundtruth!"%("" if use_groundtruth else "NOT "))
+            self.mpc_dataset_name = "%s_mpc_%s%s"%(self.env, "gt_" if self.use_groundtruth else "", self.quad_name)
+            self.mpc_dir = os.path.join(self.results_dir, self.mpc_dataset_name)
+            safe_mkdir_recursive(self.mpc_dir)
+            self.mpc_meta['gt'] = use_groundtruth
+            # Create Directory
+            safe_mkdir_recursive(self.mpc_dir)
 
 def main():
     rospy.init_node("visualizer")

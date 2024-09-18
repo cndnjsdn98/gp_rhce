@@ -114,14 +114,17 @@ void Node::initLaunchParameters(ros::NodeHandle& nh) {
 }
 
 void Node::initSubscribers(ros::NodeHandle& nh) {
+    ros::TransportHints transport_hints;
+    transport_hints.tcpNoDelay(true);
+    
     ref_sub_ = nh.subscribe<gp_rhce::ReferenceTrajectory> (
-        ref_topic_, 5, &Node::referenceCallback, this);
+        ref_topic_, 10, &Node::referenceCallback, this, transport_hints=transport_hints);
     if (use_groundtruth_) {
         state_est_sub_ = nh.subscribe<nav_msgs::Odometry> (
-            odom_topic_, 5, &Node::stateEstCallback, this);
+            odom_topic_, 10, &Node::stateEstCallback, this, transport_hints=transport_hints);
     } else {
         state_est_sub_ = nh.subscribe<nav_msgs::Odometry> (
-            state_est_topic_, 5, &Node::stateEstCallback, this);
+            state_est_topic_, 10, &Node::stateEstCallback, this, transport_hints=transport_hints);
     }
     land_sub_ = nh.subscribe<std_msgs::Bool> (
         land_topic_, 5, &Node::landCallback, this);
