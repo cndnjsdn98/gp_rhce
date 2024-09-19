@@ -48,19 +48,22 @@ Node::Node(ros::NodeHandle& nh) {
             rate.sleep();
         }
     }
-    if (mhe_type_ == "dynamic" && u_.isZero()) {
-        ROS_INFO("Motor Thrusts not received yet. Skipping time step...");
-        ros::Rate rate(1);
-        while (u_.isZero() && ros::ok()) {
-            ros::spinOnce();
-            rate.sleep();
+    if (mhe_type_ == "dynamic" && !input_received_) {
+        ROS_INFO("Don't initiate flight. Motor Thrusts not received yet. ");
+        // TODO: Save hover thrust in xacro drone params and rosparam that. instead of 0s
+        if (quad_name_ != "") {
+            std::string ns = ros::this_node::getNamespace();
+            nh.param<double>(ns + "/" + quad_name_ + "/hover_thrust", hover_thrust_, 0.0);
         }
+        u_ << hover_thrust_, hover_thrust_, hover_thrust_, hover_thrust_;
+    } else {
+        ROS_INFO("MHE: %s Loaded in %s", quad_name_.c_str(), environment_.c_str());
+        input_received_ = true;
     }
 
     optimization_dt_ = 0;
     mhe_idx_ = 0;
     
-    ROS_INFO("MHE: %s Loaded in %s", quad_name_.c_str(), environment_.c_str());
 }
 
 
@@ -95,6 +98,11 @@ void Node::initLaunchParameters(ros::NodeHandle& nh) {
     // Publisher topic names
     nh.param<std::string>(ns + "/state_est_topic", state_est_topic_, "/" + quad_name_ + "/state_est");
     nh.param<std::string>(ns + "/acceleration_est_topic", acceleration_est_topic_, "/" + quad_name_ + "/acceleration_est");
+
+    // Quad hover thrust
+    if (quad_name_ != "") {
+        nh.param<double>(ns + "/" + quad_name_, hover_thrust_, 0.0);
+    }
 }
 
 void Node::initSubscribers(ros::NodeHandle& nh) {
@@ -209,6 +217,10 @@ void Node::recordMheCallback(const std_msgs::Bool::ConstPtr& msg) {
 }
 
 void Node::motorThrustCallback(const mav_msgs::Actuators::ConstPtr& msg) {
+    if (!input_received_ && mhe_type_ == "dynamic") {
+        ROS_INFO("MHE: %s Loaded in %s", quad_name_.c_str(), environment_.c_str());
+        input_received_ = true;
+    }
     u_ << msg->angular_velocities[0],
           msg->angular_velocities[1],
           msg->angular_velocities[2],

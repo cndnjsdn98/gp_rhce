@@ -8,19 +8,18 @@ def main():
 
     compile = rospy.get_param("/compile", default=True)
 
-    if compile:
-        # Launch the Python node
-        rospy.loginfo("Launching Python node to generate MHE Acados model...")
-        model_gen_node = subprocess.Popen(['rosrun', 'gp_rhce', 'quad_optimizer_mhe.py'])
-        
-        # Wait for the Python node to complete
-        model_gen_node.wait()
-        if model_gen_node.returncode == 0:
-            rospy.loginfo("MHE Model Compilation completed successfully. Launching gp_mhe node...")
-        else:
-            rospy.logerr("MHE Model Compilation failed with return code %d", model_gen_node.returncode)
-            return  
-
+    # Launch the Python node
+    rospy.loginfo("Launching Python node to retrieve Quadrotor Params...")
+    model_gen_node = subprocess.Popen(['rosrun', 'gp_rhce', 'quad_optimizer_mhe.py'])
+    
+    # Wait for the Python node to complete
+    model_gen_node.wait()
+    if model_gen_node.returncode == 0:
+        rospy.loginfo("Launching gp_mhe node...")
+    else:
+        rospy.logerr("Python node failed with return code %d", model_gen_node.returncode)
+        return  
+    
     time.sleep(3)
 
     # Launch the C++ MHE node

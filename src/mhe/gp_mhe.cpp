@@ -103,7 +103,7 @@ void GP_MHE::setHistory(const Eigen::MatrixXd& y_history, const Eigen::MatrixXd&
             //     std::cout << u[i] << " ";
             // }
             // std::cout << std::endl;
-            mhe_acados_update_params(acados_ocp_capsule_, i, u, NP);
+            mhe_acados_update_params(acados_ocp_capsule_, i, &u[0], NP);
         }
     }
 }

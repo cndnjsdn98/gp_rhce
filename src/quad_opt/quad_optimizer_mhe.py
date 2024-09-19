@@ -244,61 +244,68 @@ def main():
     rospy.init_node("acados_compiler_mhe", anonymous=True) 
     ns = rospy.get_namespace()
 
-    # Load MHE parameters
-    n_mhe = rospy.get_param(ns + 'n_mhe', default=50)
-    t_mhe = rospy.get_param(ns + 't_mhe', default=0.5)
-    mhe_type = rospy.get_param(ns + 'mhe_type', default="kinematic")
+    compile = rospy.get_param("/compile", default=True)
+    
+    # Load Quad Instance
     quad_name = rospy.get_param(ns + 'quad_name', default=None)
     assert quad_name != None
-    with_gp = rospy.get_param(ns + 'with_gp', default=False)
-    change_mass = rospy.get_param(ns + 'change_mass', default=0)
-    
-    # System Noise
-    w_p = np.ones((1,3)) * rospy.get_param(ns + 'w_p', default=0.004)
-    w_q = np.ones((1,3)) * rospy.get_param(ns + 'w_q', default=0.01)
-    w_v = np.ones((1,3)) * rospy.get_param(ns + 'w_v', default=0.005)
-    w_r = np.ones((1,3)) * rospy.get_param(ns + 'w_r', default=0.5)
-    w_a = np.ones((1,3)) * rospy.get_param(ns + 'w_a', default=0.05)
-
-    w_d = np.ones((1,3)) * rospy.get_param(ns + 'w_d', default=0.00001)
-    w_m = np.ones((1,3)) * rospy.get_param(ns + 'w_m', default=0.0001)
-
-    # Measurement Noise
-    v_p = np.ones((1,3)) * rospy.get_param(ns + 'v_p', default=0.002)
-    v_r = np.ones((1,3)) * rospy.get_param(ns + 'v_r', default=1e-6)
-    v_a = np.ones((1,3)) * rospy.get_param(ns + 'v_a', default=1e-5)
-    v_d = np.ones((1,3)) * rospy.get_param(ns + 'v_d', default=0.0001)
-
-    # System Weights
-    if mhe_type == "kinematic":
-        q_mhe = 1/np.squeeze(np.hstack((w_p, w_q, w_v, w_r, w_a)))
-    elif mhe_type == "dynamic":
-        if not with_gp:
-            if change_mass != 0:
-                q_mhe = 1/np.squeeze(np.hstack((w_p, w_q, w_v, w_r, w_m)))
-            else:
-                q_mhe = 1/np.squeeze(np.hstack((w_p, w_q, w_v, w_r)))
-        elif with_gp:
-            if change_mass != 0:
-                q_mhe = 1/np.squeeze(np.hstack((w_p, w_q, w_v, w_r, w_d, w_m)))
-            else:
-                q_mhe = 1/np.squeeze(np.hstack((w_p, w_q, w_v, w_r, w_d)))
-    q0_factor = 1 # arrival cost factor
-    if mhe_type == "dynamic" and with_gp:
-        r_mhe = 1/np.squeeze(np.hstack((v_p, v_r, v_d))) 
-    elif mhe_type == "dynamic" and not with_gp:
-        r_mhe = 1/np.squeeze(np.hstack((v_p, v_r)))
-    else:
-        r_mhe = 1/np.squeeze(np.hstack((v_p, v_r, v_a))) 
-
-    # Load Quad Instance
     quad = custom_quad_param_loader(quad_name)
+    rospy.set_param(ns + "/" + quad_name + '/hover_thrust', quad.hover_thrust)
+   
+    if compile:
+        rospy.loginfo("Compiling MHE Acados model...")
+        # Load MHE parameters
+        n_mhe = rospy.get_param(ns + 'n_mhe', default=50)
+        t_mhe = rospy.get_param(ns + 't_mhe', default=0.5)
+        mhe_type = rospy.get_param(ns + 'mhe_type', default="kinematic")
+        with_gp = rospy.get_param(ns + 'with_gp', default=False)
+        change_mass = rospy.get_param(ns + 'change_mass', default=0)
 
-    # Compile Acados Model
-    quad_opt = QuadOptimizerMHE(quad, t_mhe=t_mhe, n_mhe=n_mhe, mhe_type=mhe_type,
-                                q_mhe=q_mhe, q0_factor=q0_factor, r_mhe=r_mhe,
-                                model_name=quad_name, mhe_gpy_ensemble=None,
-                                change_mass=change_mass)
+        # System Noise
+        w_p = np.ones((1,3)) * rospy.get_param(ns + 'w_p', default=0.004)
+        w_q = np.ones((1,3)) * rospy.get_param(ns + 'w_q', default=0.01)
+        w_v = np.ones((1,3)) * rospy.get_param(ns + 'w_v', default=0.005)
+        w_r = np.ones((1,3)) * rospy.get_param(ns + 'w_r', default=0.5)
+        w_a = np.ones((1,3)) * rospy.get_param(ns + 'w_a', default=0.05)
+
+        w_d = np.ones((1,3)) * rospy.get_param(ns + 'w_d', default=0.00001)
+        w_m = np.ones((1,3)) * rospy.get_param(ns + 'w_m', default=0.0001)
+
+        # Measurement Noise
+        v_p = np.ones((1,3)) * rospy.get_param(ns + 'v_p', default=0.002)
+        v_r = np.ones((1,3)) * rospy.get_param(ns + 'v_r', default=1e-6)
+        v_a = np.ones((1,3)) * rospy.get_param(ns + 'v_a', default=1e-5)
+        v_d = np.ones((1,3)) * rospy.get_param(ns + 'v_d', default=0.0001)
+
+        # System Weights
+        if mhe_type == "kinematic":
+            q_mhe = 1/np.squeeze(np.hstack((w_p, w_q, w_v, w_r, w_a)))
+        elif mhe_type == "dynamic":
+            if not with_gp:
+                if change_mass != 0:
+                    q_mhe = 1/np.squeeze(np.hstack((w_p, w_q, w_v, w_r, w_m)))
+                else:
+                    q_mhe = 1/np.squeeze(np.hstack((w_p, w_q, w_v, w_r)))
+            elif with_gp:
+                if change_mass != 0:
+                    q_mhe = 1/np.squeeze(np.hstack((w_p, w_q, w_v, w_r, w_d, w_m)))
+                else:
+                    q_mhe = 1/np.squeeze(np.hstack((w_p, w_q, w_v, w_r, w_d)))
+        q0_factor = 1 # arrival cost factor
+        if mhe_type == "dynamic" and with_gp:
+            r_mhe = 1/np.squeeze(np.hstack((v_p, v_r, v_d))) 
+        elif mhe_type == "dynamic" and not with_gp:
+            r_mhe = 1/np.squeeze(np.hstack((v_p, v_r)))
+        else:
+            r_mhe = 1/np.squeeze(np.hstack((v_p, v_r, v_a))) 
+
+        # Compile Acados Model
+        quad_opt = QuadOptimizerMHE(quad, t_mhe=t_mhe, n_mhe=n_mhe, mhe_type=mhe_type,
+                                    q_mhe=q_mhe, q0_factor=q0_factor, r_mhe=r_mhe,
+                                    model_name=quad_name, mhe_gpy_ensemble=None,
+                                    change_mass=change_mass)
+        rospy.loginfo("MHE Acados model Compiled Successfully...")
+        
     return
 
 def init_compile():

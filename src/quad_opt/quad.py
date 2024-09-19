@@ -62,6 +62,9 @@ def custom_quad_param_loader(quad_name):
         quad.y_f = np.array([0, quad.length, 0, -quad.length])
         quad.z_l_tau = -np.array([-quad.c, quad.c, -quad.c, quad.c])
 
+    # Compute hover thrust
+    quad.hover_thrust = (quad.mass * 9.81) / (quad.max_thrust * 4)
+
     return quad
 
 class Quadrotor:
@@ -89,6 +92,7 @@ class Quadrotor:
         self.max_thrust =  6.00318901352 #34.19432 #
         self.rotor_thrust_coeff = 8.54858e-6
         self.rotor_drag_coeff = 8.06428e-05
+        self.hover_thrust = 0.2
 
         # System state space
         self.pos = np.zeros((3,))

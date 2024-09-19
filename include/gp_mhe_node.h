@@ -30,6 +30,10 @@ private:
     std::string mhe_type_;
     std::thread mhe_thread_;
 
+    // Quadrotor Hover Thrust
+    double hover_thrust_;
+    bool input_received_ = false;
+    
     // GP Parameters
     bool with_gp_;
 
