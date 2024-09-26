@@ -1,4 +1,19 @@
 
+# Download libtorch
+save libtorch file in include/gp
+Can be anywhere honestly, just make sure to change the directory pointing to libtorch in cmakelist.txt if you do
+
+# Install cuda
+https://developer.nvidia.com/cuda-downloads
+
+## Set the CMAKE_CUDA_COMPILER Path
+Once CUDA is installed, locate the nvcc compiler, which is typically found in the following directory:
+/usr/local/cuda/bin/nvcc
+
+## Ensure Consistent CUDA Environment
+export CUDA_HOME=/usr/local/cuda
+export PATH=/usr/local/cuda/bin:$PATH
+
 
 export PYTHONPATH=$PYTHONPATH:$HOME/GP_RHCE/catkin_ws/src/gp_rhce/
 

@@ -1,4 +1,4 @@
-#ifndef GP_MHE_H
+#ifndef _GP_MHE_H
 #define _GP_MHE_H
 // ros
 #include <ros/ros.h>

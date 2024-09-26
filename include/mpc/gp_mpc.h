@@ -1,4 +1,4 @@
-#ifndef GP_MPC_H
+#ifndef _GP_MPC_H
 #define _GP_MPC_H
 // ros
 #include <ros/ros.h>

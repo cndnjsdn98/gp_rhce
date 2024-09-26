@@ -84,6 +84,17 @@ void Node::initLaunchParameters(ros::NodeHandle& nh) {
     // Gazebo Specific MPC Parameters
     nh.param<double>(ns + "/quad_max_thrust", quad_max_thrust_, 5);
     nh.param<double>(ns + "/quad_mass", quad_mass_, 5);
+    nh.param<bool>(ns + "/with_gp", with_gp_, false);
+    if (with_gp_) {
+        nh.param<std::string> (ns + "/mpc_gp_model_dir", gp_model_dir_, "");
+        assert(gp_model_dir_ != "");
+        try {
+            gp_model_ = torch::jit::load(gp_model_dir_);
+        } catch (const c10::Error& e) {
+            ROS_ERROR("MPC: Error Loading the GP Model");
+            return;
+        }
+    }
 
     // Subscriber topic names
     nh.param<std::string>(ns + "/ref_topic", ref_topic_, ns + "/reference");
@@ -207,25 +218,26 @@ void Node::stateEstCallback(const nav_msgs::Odometry::ConstPtr& msg) {
           msg->pose.pose.orientation.x,
           msg->pose.pose.orientation.y, 
           msg->pose.pose.orientation.z};
+    q_eig_ = {msg->pose.pose.orientation.w, 
+              msg->pose.pose.orientation.x,
+              msg->pose.pose.orientation.y, 
+              msg->pose.pose.orientation.z};
     v_ = {msg->twist.twist.linear.x, 
           msg->twist.twist.linear.y, 
           msg->twist.twist.linear.z};
+    vb_ << msg->twist.twist.linear.x, 
+           msg->twist.twist.linear.y, 
+           msg->twist.twist.linear.z;
     w_ = {msg->twist.twist.angular.x,
           msg->twist.twist.angular.y,
           msg->twist.twist.angular.z};
 
     if (environment_ == "gazebo") {
         // If its Gazebo transform v_B to v_W
-        // Load as Eigen to perform Rotation
-        Eigen::Quaterniond q_eig(msg->pose.pose.orientation.w, msg->pose.pose.orientation.x,
-                                 msg->pose.pose.orientation.y, msg->pose.pose.orientation.z);
-        Eigen::Vector3d v_eig(msg->twist.twist.linear.x, 
-                              msg->twist.twist.linear.y, 
-                              msg->twist.twist.linear.z);
         // Apply rotation to get velocity in world frame
-        v_eig = q_eig * v_eig;
+        vb_ = q_eig_ * vb_;
         // Save to std::vector
-        v_ = {v_eig.x(), v_eig.y(), v_eig.z()};
+        v_ = {vb_.x(), vb_.y(), vb_.z()};
     }
 
     // concatenate p, q, v, w into x_

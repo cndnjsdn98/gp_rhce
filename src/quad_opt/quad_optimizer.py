@@ -11,13 +11,12 @@ You should have received a copy of the GNU General Public License along with
 this program. If not, see <http://www.gnu.org/licenses/>.
 """
 
-
-import os
 import casadi as cs
 import numpy as np
 from acados_template import AcadosModel
-from src.utils.utils import skew_symmetric, v_dot_q
 
+from src.utils.utils import skew_symmetric, v_dot_q
+from src.utils.DirectoryConfig import DirectoryConfig as DirConfig
 class QuadOptimizer:
     def __init__(self, quad, t_mpc=None, n_mpc=None, t_mhe=None, n_mhe=None, mhe_type=None,
                  mpc_gpy_ensemble=None, mhe_gpy_ensemble=None,
@@ -187,7 +186,7 @@ class QuadOptimizer:
         self.acados_mpc_solver = {}
         self.acados_mhe_solver = {}
 
-        self.acados_models_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "acados_ocp")
+        self.acados_models_dir = DirConfig.ACADOS_MODEL_DIR
 
     def acados_setup_model(self, nominal, model_name, mhe=False):
         """

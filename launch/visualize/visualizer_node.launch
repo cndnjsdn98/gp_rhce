@@ -1,5 +1,4 @@
 <?xml version="1.0"?>
 <launch>
-    <param name="results_dir" value="$(find gp_rhce)/results/"/>
     <node name="visualizer_node" pkg="gp_rhce" type="visualizer_node.py" output="screen"/>
 </launch>

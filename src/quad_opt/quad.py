@@ -11,17 +11,18 @@ You should have received a copy of the GNU General Public License along with
 this program. If not, see <http://www.gnu.org/licenses/>.
 """
 
-import numpy as np
-from src.utils.utils import parse_xacro_file
 import os
+import numpy as np
 
+from src.utils.utils import parse_xacro_file
+from src.utils.DirectoryConfig import DirectoryConfig as DirConfig
 def custom_quad_param_loader(quad_name):
 
-    this_path = os.path.dirname(os.path.realpath(__file__))
-    params_file = os.path.join(this_path, '..', '..', 'quads', quad_name, quad_name + '.xacro')
+    quad_param_dir = DirConfig.QUAD_PARAM_DIR
+    quad_param = os.path.join(quad_param_dir, quad_name, quad_name + '.xacro')
 
     # Get parameters for drone
-    attrib = parse_xacro_file(params_file)
+    attrib = parse_xacro_file(quad_param)
 
     quad = Quadrotor(noisy=False, drag=True, payload=False, motor_noise=False)
     quad.quad_name = quad_name

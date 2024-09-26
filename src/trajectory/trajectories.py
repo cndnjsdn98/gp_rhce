@@ -13,15 +13,15 @@ this program. If not, see <http://www.gnu.org/licenses/>.
 
 
 import numpy as np
-from src.utils.utils import quaternion_inverse, q_dot_q, undo_quaternion_flip, rotation_matrix_to_quat
-from src.trajectory.trajectory_generator import draw_poly, get_full_traj, fit_multi_segment_polynomial_trajectory, random_periodical_trajectory
-# from config.configuration_parameters import DirectoryConfig
 import os
 from mpl_toolkits.mplot3d import Axes3D
 import yaml
 import json
-
 import rospy
+
+from src.utils.utils import quaternion_inverse, q_dot_q, undo_quaternion_flip, rotation_matrix_to_quat
+from src.trajectory.trajectory_generator import draw_poly, get_full_traj, fit_multi_segment_polynomial_trajectory, random_periodical_trajectory
+from src.utils.DirectoryConfig import DirectoryConfig
 
 def minimum_snap_trajectory_generator(traj_derivatives, yaw_derivatives, t_ref, quad, map_limits, plot, env):
     """
@@ -179,11 +179,9 @@ def minimum_snap_trajectory_generator(traj_derivatives, yaw_derivatives, t_ref, 
 
     return reference_traj, t_ref, reference_u
 
-
 def load_map_limits_from_file(map_limits, environment):
     if map_limits is not None and map_limits != "None":
-        # config_path = DirectoryConfig.CONFIG_DIR
-        config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'config')
+        config_path = DirectoryConfig.CONFIG_DIR
         params_file = os.path.join(config_path, environment, map_limits + '.yaml')
         try:
             with open(params_file) as file:
@@ -250,7 +248,7 @@ def random_trajectory(quad, discretization_dt, seed, speed, map_name=None, plot=
 
     return reference_traj, t_ref, reference_u
 
-def loop_trajectory(quad, discretization_dt, radius, z, lin_acc, clockwise, yawing, v_max, map_name, plot, z_dim, environment):
+def circle_trajectory(quad, discretization_dt, radius, z, lin_acc, clockwise, yawing, v_max, map_name, plot, z_dim, environment):
     """
     Creates a circular trajectory on the x-y plane that increases speed by 1m/s at every revolution.
 

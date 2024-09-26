@@ -15,7 +15,7 @@ this program. If not, see <http://www.gnu.org/licenses/>.
 from std_msgs.msg import Bool
 from gp_rhce.msg import ReferenceTrajectory
 from src.quad_opt.quad import custom_quad_param_loader
-from src.trajectory.trajectories import loop_trajectory, random_trajectory, lemniscate_trajectory, hover_trajectory
+from src.trajectory.trajectories import circle_trajectory, random_trajectory, lemniscate_trajectory, hover_trajectory
 import numpy as np
 import rospy
 
@@ -41,8 +41,9 @@ class ReferenceGenerator:
             v_list = v_list.split('[')[1].split(']')[0]
             v_list = [float(v.strip()) for v in v_list.split(',')]
 
-        # Select if generate "random" trajectories, "hover" mode or increasing speed "loop" mode
-        mode = rospy.get_param('~mode', default="lemniscate")
+        # Select if generate "random" trajectories, "hover" mode or increasing speed "circle" mode
+        mode = rospy.get_param('~mode', default="")
+        assert mode in ["circle", "lemniscate", "hover", "random"]
         if mode != "random":
             n_seeds = 1
 
@@ -93,9 +94,9 @@ class ReferenceGenerator:
                 rospy.signal_shutdown("All trajectories were sent to the MPC")
                 break
 
-            if not self.gp_mpc_busy and mode == "loop":
-                rospy.loginfo("Sending increasing speed loop trajectory")
-                x_ref, t_ref, u_ref = loop_trajectory(quad, opt_dt, v_max=loop_v_max, radius=loop_r, z=loop_z,
+            if not self.gp_mpc_busy and mode == "circle":
+                rospy.loginfo("Sending increasing speed circular trajectory")
+                x_ref, t_ref, u_ref = circle_trajectory(quad, opt_dt, v_max=loop_v_max, radius=loop_r, z=loop_z,
                                                       lin_acc=loop_a, clockwise=loop_cc, map_name=map_limits,
                                                       yawing=loop_yawing, plot=plot, z_dim=z_dim, environment=env)
 

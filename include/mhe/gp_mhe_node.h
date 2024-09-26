@@ -1,8 +1,7 @@
-#ifndef GP_MHE_NODE_H
+#ifndef _GP_MHE_NODE_H
 #define _GP_MHE_NODE_H
 
 #include <ros/ros.h>
-
 #include <mav_msgs/Actuators.h>
 #include <sensor_msgs/Imu.h>
 #include <std_msgs/Bool.h>

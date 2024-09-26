@@ -81,7 +81,7 @@ void Node::initLaunchParameters(ros::NodeHandle& nh) {
     std::string ns = ros::this_node::getNamespace();
 
     // System environment
-    nh.param<std::string> (ns + "/environment", environment_, "arena");
+    nh.param<std::string>(ns + "/environment", environment_, "arena");
     nh.param<std::string>(ns + "/quad_name", quad_name_, "");
 
     // MHE Parameters

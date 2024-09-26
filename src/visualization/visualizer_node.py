@@ -22,6 +22,7 @@ from src.quad_opt.quad_optimizer import QuadOptimizer
 from src.utils.utils import v_dot_q, quaternion_inverse, safe_mkdir_recursive
 from src.visualization.visualization import trajectory_tracking_results, state_estimation_results, test
 from src.quad_opt.quad import custom_quad_param_loader
+from utils.DirectoryConfig import DirectoryConfig as DirConfig
 
 class VisualizerWrapper:
     def __init__(self):
@@ -47,8 +48,9 @@ class VisualizerWrapper:
 
         ns = rospy.get_namespace()
         self.results_dir = rospy.get_param("results_dir", default=None)
-        # if self.results_dir is None:
-        #     self.results_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'results')
+        if self.results_dir is None:
+            self.results_dir = DirConfig.FLIGHT_DATA_DIR
+
         assert self.results_dir is not None
         self.mpc_meta = {
             'quad_name': self.quad_name,
@@ -174,6 +176,7 @@ class VisualizerWrapper:
         mpc_error = np.zeros_like(state_in)
         x_pred_traj = np.zeros_like(state_in)
         mpc_t = np.zeros((self.seq_len, 1))
+        dt_traj = np.zeros((self.seq_len, 1))
         rospy.loginfo("Filling in MPC dataset and saving...")
         for i in tqdm(range(self.seq_len)): 
             ii = i * 2
@@ -199,10 +202,11 @@ class VisualizerWrapper:
             state_out[i] = self.x_act[ii+1] if self.use_groundtruth else self.x_est[ii+1]
             u_in[i] = u
             mpc_t[i] = self.t_act[ii]
-
+            dt_traj[i] = dt
         # Organize arrays to dictionary
         mpc_dict = {
             "t": mpc_t,
+            "dt": dt_traj,
             "t_ref": self.t_ref,
             "state_in": state_in,
             "state_out": state_out,

@@ -1,4 +1,4 @@
-#ifndef GP_MPC_NODE_H
+#ifndef _GP_MPC_NODE_H
 #define _GP_MPC_NODE_H
 
 #include <ros/ros.h>
@@ -14,7 +14,10 @@
 #include <thread>
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
+
 #include <gp_mpc.h>
+
+#include <torch/script.h>
 
 class Node {
 private:
@@ -52,6 +55,11 @@ private:
 
     // GP Parameters
     bool with_gp_;
+    std::string gp_model_dir_;
+    std::vector<torch::jit::IValue> gp_input_;
+    torch::jit::script::Module gp_model_;
+    Eigen::Vector3d vb_;
+    Eigen::Quaterniond q;
 
     // Subscriber Topics 
     std::string ref_topic_, state_est_topic_, odom_topic_, land_topic_;
