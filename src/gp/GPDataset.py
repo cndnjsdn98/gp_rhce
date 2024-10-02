@@ -50,24 +50,6 @@ class GPDataset:
             # GP input and output
             self.train_in = self.x_in
             self.train_out = self.error
-
-            self.quad = custom_quad_param_loader(self.quad_name)
-            self.quad_opt = QuadOptimizer(self.quad)
-            for i, t in enumerate(self.t):
-                x_in = data['state_in'][i]
-                x_out = data["state_out"][i]
-                x_out_B = vw_to_vb(x_out)
-
-                u = data['input_in'][i]
-                u = np.append(u, [0])
-                dt = data['dt'][i]
-                pred = self.quad_opt.forward_prop(x_in, u, t_horizon=dt)
-
-                pred_B = vw_to_vb(pred)
-
-                err = (x_out_B - pred_B) / dt if dt!=0 else 0
-
-                self.error[i] = err
         else:
             self.mpc = False
             self.mhe = True

@@ -179,7 +179,7 @@ if __name__ == "__main__":
     mpc_epoch = 50
     mhe_epoch = 100
     n_dense_points = 100
-    n_sparse_points = n_induce = 50
+    n_sparse_points = n_induce = 20
     verbose = 1
     train_MPC_gp(quad_name, 
                  model_type, 

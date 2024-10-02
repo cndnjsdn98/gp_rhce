@@ -19,8 +19,8 @@ from quadrotor_msgs.msg import ControlCommand
 from gp_rhce.msg import ReferenceTrajectory
 
 from src.quad_opt.quad_optimizer import QuadOptimizer
-from src.utils.utils import v_dot_q, quaternion_inverse, safe_mkdir_recursive, vw_to_vb
-from src.visualization.visualization import trajectory_tracking_results, state_estimation_results, test
+from src.utils.utils import v_dot_q, quaternion_inverse, safe_mkdir_recursive, vw_to_vb, rmse
+from src.visualization.visualization import trajectory_tracking_results, state_estimation_results
 from src.quad_opt.quad import custom_quad_param_loader
 from src.utils.DirectoryConfig import DirectoryConfig as DirConfig
 
@@ -69,18 +69,27 @@ class VisualizerWrapper:
             'mhe_type': self.mhe_type
         }
         # Create MPC Directory
-        self.mpc_dataset_name = "%s_mpc_%s%s"%(self.env, "gt_" if self.use_groundtruth else "", self.quad_name)
+        self.mpc_dataset_name = "%s%s_mpc_%s%s"%("gp_" if self.mpc_with_gp else "",
+                                                  self.env, 
+                                                  "gt_" if self.use_groundtruth else "", 
+                                                  self.quad_name)
         self.mpc_dir = os.path.join(self.results_dir, self.mpc_dataset_name)
         safe_mkdir_recursive(self.mpc_dir)
         # Create MHE Directory if MHE Type is given
         # else check every second
         if self.mhe_type is not None:
-            self.mhe_dataset_name = "%s_%smhe_%s"%(self.env, "k" if self.mhe_type=="kinematic" else "d", self.quad_name)
+            self.mhe_dataset_name = "%s%s_%smhe_%s"%("gp_" if self.mhe_with_gp else "",
+                                                     self.env, 
+                                                     "k" if self.mhe_type=="kinematic" else "d", 
+                                                     self.quad_name)
             self.mhe_dir = os.path.join(self.results_dir, self.mhe_dataset_name)
             safe_mkdir_recursive(self.mhe_dir)
 
-        self.timer_mhe_type = rospy.Timer(rospy.Duration(1), self.check_mhe_type)
+        # Check every 1 second if MPC/MHE parameters have changed
         self.timer_use_gt = rospy.Timer(rospy.Duration(1), self.check_use_gt)
+        self.timer_mpc_with_gp = rospy.Timer(rospy.Duration(1), self.check_mpc_with_gp)
+        self.timer_mhe_type = rospy.Timer(rospy.Duration(1), self.check_mhe_type)
+        self.timer_mhe_with_gp = rospy.Timer(rospy.Duration(1), self.check_mhe_with_gp)
 
         self.record = False
 
@@ -191,8 +200,8 @@ class VisualizerWrapper:
             dt = self.t_act[ii+1] - self.t_act[ii]
 
             # Dynamic Model Pred
-            x_pred = self.quad_opt.forward_prop(x0, _u, t_horizon=dt)
-            x_pred = x_pred[-1, np.newaxis, :]
+            x_pred = self.quad_opt.forward_prop(x0, u, t_horizon=dt)
+            # x_pred = x_pred[-1, np.newaxis, :]
             x_pred_B = vw_to_vb(x_pred)
             
             # MPC Model error
@@ -206,6 +215,8 @@ class VisualizerWrapper:
             dt_traj[i] = dt
             x_pred_traj[i] = x_pred
             mpc_error[i] = x_err / dt if dt != 0 else 0
+        mpc_tracking_error = rmse(self.t_ref, self.x_ref[:, :3], self.t_ref, state_in[:, :3])
+        
         # Organize arrays to dictionary
         mpc_dict = {
             "t": mpc_t,
@@ -222,6 +233,9 @@ class VisualizerWrapper:
             "w_control": self.w_control,
             "error_pred": self.mpc_gpy_pred,
         }
+        self.mpc_meta['rmse'] = mpc_tracking_error
+        v_max = np.max(np.linalg.norm(state_in[:, 7:10], axis=1))
+
         # Save results
         mpc_dir = os.path.join(self.mpc_dir, self.ref_traj_name)
         safe_mkdir_recursive(mpc_dir)
@@ -231,7 +245,7 @@ class VisualizerWrapper:
             json.dump(self.mpc_meta, f, indent=4)
         trajectory_tracking_results(mpc_dir, self.t_ref, mpc_t, self.x_ref, state_in,
                                     self.u_ref, u_in, mpc_error, w_control=self.w_control, file_type='png')
-
+        
         # Check MHE is running and if it is continue to save MHE results
         if len(self.x_est) > 0:
             # self.t_est = self.t_est - self.t_est[0]
@@ -348,8 +362,7 @@ class VisualizerWrapper:
         self.p_meas = None
         self.w_meas = None
         self.a_meas = None
-        rospy.loginfo("Recording Complete.")
-        
+        rospy.loginfo("Recording Complete. Total Control RMSE: %.5f m. Max Vel: %.3f m/s" % (mpc_tracking_error, v_max))
     # def pose_callback(self, msg):
     #     if not self.record:
     #         return
@@ -483,28 +496,65 @@ class VisualizerWrapper:
             _save_record_thread = threading.Thread(target=self.save_recording_data(), args=(), daemon=True)
             _save_record_thread.start()
 
-    def check_mhe_type(self, event):
-        mhe_type = rospy.get_param("gp_mhe/mhe_type", default=None)
-        if mhe_type is not None and self.mhe_type != mhe_type:
-            self.mhe_type = mhe_type
-            rospy.loginfo("%s MHE detected"%self.mhe_type)
-            self.mhe_dataset_name = "%s_%smhe_%s"%(self.env, "k" if self.mhe_type=="kinematic" else "d", self.quad_name)
-            self.mhe_dir = os.path.join(self.results_dir, self.mhe_dataset_name)
-            self.mhe_meta['mhe_type'] = self.mhe_type
-            # Create Directory
-            safe_mkdir_recursive(self.mhe_dir)
-    
+
     def check_use_gt(self, event):
         use_groundtruth = rospy.get_param("gp_mpc/use_groundtruth", default=None)
         if use_groundtruth is not None and self.use_groundtruth != use_groundtruth:
             self.use_groundtruth = use_groundtruth
             rospy.loginfo("%sUsing Groundtruth!"%("" if use_groundtruth else "NOT "))
-            self.mpc_dataset_name = "%s_mpc_%s%s"%(self.env, "gt_" if self.use_groundtruth else "", self.quad_name)
+            self.mpc_dataset_name = "%s%s_mpc_%s%s"%("gp_" if self.mpc_with_gp else "",
+                                                      self.env, 
+                                                      "gt_" if self.use_groundtruth else "", 
+                                                      self.quad_name)
             self.mpc_dir = os.path.join(self.results_dir, self.mpc_dataset_name)
             safe_mkdir_recursive(self.mpc_dir)
             self.mpc_meta['gt'] = use_groundtruth
             # Create Directory
             safe_mkdir_recursive(self.mpc_dir)
+
+    def check_mpc_with_gp(self, event):
+        mpc_with_gp = rospy.get_param("gp_mpc/with_gp", default=None)
+        if mpc_with_gp is not None and self.mpc_with_gp != mpc_with_gp:
+            self.mpc_with_gp = mpc_with_gp
+            rospy.loginfo("MPC w/%s GP"%"OUT" if not mpc_with_gp else "")
+            self.mpc_dataset_name = "%s%s_mpc_%s%s"%("gp_" if self.mpc_with_gp else "",
+                                                      self.env, 
+                                                      "gt_" if self.use_groundtruth else "", 
+                                                      self.quad_name)
+            self.mpc_dir = os.path.join(self.results_dir, self.mpc_dataset_name)
+            self.mpc_meta['with_gp'] = self.mpc_with_gp
+            # Create Directory
+            safe_mkdir_recursive(self.mpc_dir)
+
+    def check_mhe_type(self, event):
+        mhe_type = rospy.get_param("gp_mhe/mhe_type", default=None)
+        if mhe_type is not None and self.mhe_type != mhe_type:
+            self.mhe_type = mhe_type
+            rospy.loginfo("%s MHE detected"%self.mhe_type)
+            self.mhe_dataset_name = "%s%s_%smhe_%s"%("gp_" if self.mhe_with_gp else "",
+                                                     self.env, 
+                                                     "k" if self.mhe_type=="kinematic" else "d", 
+                                                     self.quad_name)
+            self.mhe_dir = os.path.join(self.results_dir, self.mhe_dataset_name)
+            self.mhe_meta['mhe_type'] = self.mhe_type
+            # Create Directory
+            safe_mkdir_recursive(self.mhe_dir)
+
+    def check_mhe_with_gp(self, event):
+        mhe_with_gp = rospy.get_param("gp_mhe/with_gp", default=None)
+        if mhe_with_gp is not None and self.mhe_with_gp != mhe_with_gp:
+            self.mhe_with_gp = mhe_with_gp
+            rospy.loginfo("MHE w/%s GP"%"OUT" if not mhe_with_gp else "")
+            self.mhe_dataset_name = "%s%s_%smhe_%s"%("gp_" if self.mhe_with_gp else "",
+                                                     self.env, 
+                                                     "k" if self.mhe_type=="kinematic" else "d", 
+                                                     self.quad_name)
+            self.mhe_dir = os.path.join(self.results_dir, self.mhe_dataset_name)
+            self.mhe_meta['with_gp'] = self.mhe_with_gp
+            # Create Directory
+            safe_mkdir_recursive(self.mhe_dir)
+
+
 
 def main():
     rospy.init_node("visualizer")

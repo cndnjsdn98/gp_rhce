@@ -5,22 +5,6 @@ from src.utils.utils import separate_variables, quaternion_inverse, \
                             quaternion_to_euler, unwrap, q_dot_q, v_dot_q
 from mpl_toolkits.mplot3d import Axes3D
 
-def test(img_save_dir, t_act, x_act, t_imu, y_imu):
-    fig, ax = plt.subplots(3, 1, sharex='all', figsize=(13, 14))
-    for i in range(3):
-        ax[i].plot(t_act, x_act[:, i], label="actual", zorder=2)
-        ax[i].plot(t_imu, y_imu[:, i], label="measurement", zorder=1)
-        ax[i].legend()
-        ax[i].grid()
-    ax[0].set_title(r'$p\:[m]$')
-    ax[2].set_xlabel(r'$t [s]$')
-    plt.tight_layout()
-    fig.savefig(img_save_dir + '/test.png', dpi=None, facecolor='w', edgecolor='w',
-                    orientation='portrait', format='png',
-                    transparent=False, bbox_inches=None, pad_inches=0.05,
-                    metadata=None)
-    plt.close(fig)
-
 def trajectory_tracking_results(img_save_dir, t_ref, t_executed, x_ref, x_executed, u_ref, u_executed, mpc_error,
                                 w_control=None, legend_labels=None,
                                 quat_error=True, file_type='png'):

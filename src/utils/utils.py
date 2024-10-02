@@ -19,6 +19,7 @@ import numpy as np
 import casadi as cs
 import xml.etree.ElementTree as XMLtree
 import pyquaternion
+from scipy.interpolate.interpolate import interp1d
 
 def safe_mkdir_recursive(directory, overwrite=False):
     if not os.path.exists(directory):
@@ -217,3 +218,25 @@ def parse_xacro_file(xacro):
                 continue
 
     return attrib_dict
+
+def rmse(t_1, x_1, t_2, x_2, n_interp_samples=1000):
+    if np.all(t_1 == t_2):
+        return np.mean(np.sqrt(np.sum((x_1 - x_2) ** 2, axis=1)))
+
+    assert x_1.shape[1] == x_2.shape[1]
+
+    t_min = max(t_1[0], t_2[0])
+    t_max = min(t_1[-1], t_2[-1])
+
+    t_interp = np.linspace(t_min, t_max, n_interp_samples)
+    err = np.zeros((n_interp_samples, x_1.shape[1]))
+    for dim in range(x_1.shape[1]):
+        x1_interp = interp1d(np.squeeze(t_1), np.squeeze(x_1[:, dim]), kind='cubic')
+        x2_interp = interp1d(np.squeeze(t_2), np.squeeze(x_2[:, dim]), kind='cubic')
+
+        x1_sample = x1_interp(t_interp)
+        x2_sample = x2_interp(t_interp)
+
+        err[:, dim] = x1_sample - x2_sample
+
+    return np.mean(np.sqrt(np.sum(err ** 2, axis=1)))
