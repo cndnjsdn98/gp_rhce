@@ -11,32 +11,33 @@
 
 using namespace ros;
 using namespace Eigen;
+namespace fs = std::filesystem;
 
 // Constructor
 Node::Node(ros::NodeHandle& nh) {
+    // initialize vector sizes
+    x_ = VectorXd::Zero(MPC_NX);
+    p_ = VectorXd::Zero(N_POSITION_STATES);
+    q_.coeffs() << 0, 0, 0, 1;
+    v_ = VectorXd::Zero(N_VELOCITY_STATES);
+    w_ = VectorXd::Zero(N_RATE_STATES);
+    x_opt_ = VectorXd::Zero(MPC_NX);
+    u_opt_ = VectorXd::Zero(MPC_NU);  
+    x_ref_prov_ = VectorXd::Zero(MPC_NX);
+    u_ref_prov_ = VectorXd::Zero(MPC_NU);
+    x_available_ = false;
+    ref_received_ = false;
+
     initLaunchParameters(nh);
     initSubscribers(nh);
     initPublishers(nh);
     initRosService(nh);
+
     gp_mpc_ = new GP_MPC();
     if (gp_mpc_ == nullptr) {
         ROS_ERROR("FAILED TO CREATE GP_MPC INSTANCE");
         std::exit(EXIT_FAILURE);
     } 
-    assert(quad_name_ != "");
-
-    // initialize vector sizes
-    x_.resize(MPC_NX);
-    p_.resize(N_POSITION_STATES);
-    q_.resize(N_QUATERNION_STATES);
-    v_.resize(N_VELOCITY_STATES);
-    w_.resize(N_RATE_STATES);
-    x_opt_.resize(MPC_NX);
-    u_opt_.resize(MPC_NU);  
-    x_ref_prov_.resize(MPC_NX);
-    u_ref_prov_.resize(MPC_NU);
-    
-    x_available_ = false;
     // Start thread to publish mpc status
     status_thread_ = std::thread(&Node::run, this);
 
@@ -78,6 +79,7 @@ void Node::initLaunchParameters(ros::NodeHandle& nh) {
     nh.param<std::string> (ns + "/environment", environment_, "arena");
     nh.param<std::string>(ns + "/quad_name", quad_name_, "");
     nh.param<bool>(ns + "/use_groundtruth", use_groundtruth_, true);
+    assert(quad_name_ != "");
 
     // MPC Parameters
     nh.param<int>(ns + "/control_freq_factor", control_freq_factor_, 5);
@@ -85,11 +87,29 @@ void Node::initLaunchParameters(ros::NodeHandle& nh) {
     nh.param<double>(ns + "/quad_max_thrust", quad_max_thrust_, 5);
     nh.param<double>(ns + "/quad_mass", quad_mass_, 5);
     nh.param<bool>(ns + "/with_gp", with_gp_, false);
+
+    // Load GP models and initialize GP related vectors/matrices
     if (with_gp_) {
-        nh.param<std::string> (ns + "/mpc_gp_model_dir", gp_model_dir_, "");
-        assert(gp_model_dir_ != "");
+        nh.param<std::string> ("/gp_model_dir", gp_model_dir_, "");
+        nh.param<std::string> (ns + "/gp_model_name", gp_model_name_, "");
+        assert(gp_model_dir_ != "" || gp_model_name_ != "");
+        nh.param<std::vector<int>> (ns + "/x_features", x_features_, {7, 8, 9});
+        nh.param<std::vector<int>> (ns + "/y_features", y_features_, {7, 8, 9});
+        n_features_ = x_features_.size();
+        gp_corr_ = MatrixXd::Zero(MPC_N, n_features_);
+        mpc_param_ = MatrixXd::Zero(MPC_N, MPC_NP);
+        mpc_param_(0, MPC_NP-1) = 1; // TRIGGER VALUE
+        gp_model_.resize(n_features_);
         try {
-            gp_model_ = torch::jit::load(gp_model_dir_);
+            for (int i = 0; i < n_features_; ++i) {
+                std::string gp_model_file = gp_model_dir_ + gp_model_name_ + "/scripted_gpy_model_" + std::to_string(x_features_[i]) + ".pth";
+                if (fs::exists(gp_model_file)) {
+                    gp_model_[i] = torch::jit::load(gp_model_file);
+                } else {
+                    ROS_ERROR("GP Model %s does not exists", gp_model_name_.c_str());
+                }
+            }
+            ROS_INFO("MPC: Loaded GP Models");
         } catch (const c10::Error& e) {
             ROS_ERROR("MPC: Error Loading the GP Model");
             return;
@@ -168,7 +188,7 @@ void Node::landCallback(const std_msgs::Bool::ConstPtr& msg) {
 }
 
 void Node::referenceCallback(const gp_rhce::ReferenceTrajectory::ConstPtr& msg) {
-    if (x_ref_.empty()) {
+    if (!ref_received_) {
         ref_len_ = msg->seq_len;
         // TODO: ACCEPT HOVER COMMANDS
         // if (ref_len_ == 0) {
@@ -185,21 +205,40 @@ void Node::referenceCallback(const gp_rhce::ReferenceTrajectory::ConstPtr& msg) 
 
         // Save reference trajectory, inputs and relative times 
         std::vector<double> trajectory = msg->trajectory;
-        x_ref_.resize(ref_len_, std::vector<double>(MPC_NX));
+        x_ref_ = MatrixXd(ref_len_, MPC_NX);
         for (std::size_t i = 0; i < ref_len_; i++) {
-            std::copy(trajectory.begin() + (i * MPC_NX), trajectory.begin() + (i * MPC_NX) + MPC_NX, x_ref_[i].begin());
+            x_ref_.row(i) = Eigen::Map<const Eigen::VectorXd>(trajectory.data() + (i * MPC_NX), MPC_NX);
         }
-        std::vector<double> u_ref = msg->inputs;
-        u_ref_.resize(ref_len_, std::vector<double>(MPC_NU));
-        for (std::size_t i = 0; i < ref_len_; i++) {
-            for (std::size_t j = 0; j < MPC_NU; j ++) {
-                u_ref_[i][j] = u_ref[i * MPC_NU + j];
-            }
-        }
-        t_ref_.insert(t_ref_.end(), msg->dt.begin(), msg->dt.end());
         
-        if (!t_ref_.empty()) {  // Check if the vector is not empty
-            ROS_INFO("New trajectory received. Time duration: %.2f s", t_ref_.back());
+        std::vector<double> u_ref = msg->inputs;
+        u_ref_ = MatrixXd(ref_len_, MPC_NU);
+        for (std::size_t i = 0; i < ref_len_; i++) {
+            u_ref_.row(i) = Eigen::Map<const Eigen::VectorXd>(u_ref.data() + i * MPC_NU, MPC_NU);
+        }
+
+        t_ref_ = VectorXd::Zero(ref_len_);
+        t_ref_ = Eigen::Map<const Eigen::VectorXd>(msg->dt.data(), ref_len_);
+        
+        if (with_gp_) {
+            gp_input_.resize(1);
+            std::vector<at::Tensor> gp_corr_ref;
+            gp_corr_ref.resize(n_features_);
+            for (int i = 0; i < n_features_; ++i) {
+                torch::Tensor input_tensor = torch::from_blob(x_ref_.col(i).data(), {ref_len_}, torch::kDouble);
+                gp_input_[0] = input_tensor;
+                // When GP model only predicts mean:
+                torch::Tensor pred = gp_model_[i].forward(gp_input_).toTensor();
+                gp_corr_ref[i] = pred.to(torch::kDouble);
+
+                // When GP models predicts mean AND variance:
+                // auto output = gp_model_[i].forward(gp_input_).toTuple();
+                // torch::Tensor output_tensor = output->elements()[1].toTensor();
+            }
+            gp_corr_ref_ = tensorToEigen(gp_corr_ref);
+        }
+        if (!t_ref_.isZero()) {  // Check if the vector is not empty
+            ROS_INFO("New trajectory received. Time duration: %.2f s", t_ref_(t_ref_.size() - 1));
+            ref_received_ = true;
         } else {
             ROS_WARN("Trajectory vector is empty.");    
         }
@@ -209,46 +248,40 @@ void Node::referenceCallback(const gp_rhce::ReferenceTrajectory::ConstPtr& msg) 
 }
 
 void Node::stateEstCallback(const nav_msgs::Odometry::ConstPtr& msg) {
-    // double time = ros::Time::now().toNSec() * 1e6;
-    // std::cout << time << " " << msg->header.seq << std::endl;
-    p_ = {msg->pose.pose.position.x,
+    p_ << msg->pose.pose.position.x,
           msg->pose.pose.position.y,
-          msg->pose.pose.position.z}; 
-    q_ = {msg->pose.pose.orientation.w, 
-          msg->pose.pose.orientation.x,
-          msg->pose.pose.orientation.y, 
-          msg->pose.pose.orientation.z};
-    q_eig_ = {msg->pose.pose.orientation.w, 
-              msg->pose.pose.orientation.x,
-              msg->pose.pose.orientation.y, 
-              msg->pose.pose.orientation.z};
-    v_ = {msg->twist.twist.linear.x, 
+          msg->pose.pose.position.z; 
+    q_.coeffs() << msg->pose.pose.orientation.x,
+                   msg->pose.pose.orientation.y, 
+                   msg->pose.pose.orientation.z,
+                   msg->pose.pose.orientation.w;
+    q_.normalize();
+    v_ << msg->twist.twist.linear.x, 
           msg->twist.twist.linear.y, 
-          msg->twist.twist.linear.z};
-    vb_ << msg->twist.twist.linear.x, 
-           msg->twist.twist.linear.y, 
-           msg->twist.twist.linear.z;
-    w_ = {msg->twist.twist.angular.x,
+          msg->twist.twist.linear.z;
+    w_ << msg->twist.twist.angular.x,
           msg->twist.twist.angular.y,
-          msg->twist.twist.angular.z};
+          msg->twist.twist.angular.z;
 
     if (environment_ == "gazebo") {
-        // If its Gazebo transform v_B to v_W
-        // Apply rotation to get velocity in world frame
-        vb_ = q_eig_ * vb_;
-        // Save to std::vector
-        v_ = {vb_.x(), vb_.y(), vb_.z()};
+        // Gazebo gives velocity in Body frame
+        vb_ << msg->twist.twist.linear.x, 
+               msg->twist.twist.linear.y, 
+               msg->twist.twist.linear.z;
+        v_ = transformToWorldFrame(q_, v_);
+    } else {
+        vb_ = transformToBodyFrame(q_, v_);
     }
 
     // concatenate p, q, v, w into x_
-    std::copy(p_.begin(), p_.end(), x_.begin());
-    std::copy(q_.begin(), q_.end(), x_.begin() + IDX_QUATERNION_START);
-    std::copy(v_.begin(), v_.end(), x_.begin() + IDX_VELOCITY_START);
-    std::copy(w_.begin(), w_.end(), x_.begin() + IDX_RATE_START);
+    x_.head(N_POSITION_STATES) = p_;
+    x_.segment(IDX_QUATERNION_START, N_QUATERNION_STATES) << q_.w(), q_.x(), q_.y(), q_.z();
+    x_.segment(IDX_VELOCITY_START, N_VELOCITY_STATES) = v_;
+    x_.tail(N_RATE_STATES) = w_;
 
 
     x_available_ = true;
-
+    
     // Only optimize once every two messages (ie. state est: 100Hz, control: 50Hz)
     if (!optimize_next_) {
         if (mpc_thread_.joinable()) {
@@ -293,7 +326,6 @@ void Node::stateEstCallback(const nav_msgs::Odometry::ConstPtr& msg) {
     mpc_thread_ = std::thread(&Node::runMPC, this);
     last_state_est_seq_num_ = msg->header.seq;
     optimize_next_ = false;
-    
 }
 
 void Node::runMPC() {
@@ -322,11 +354,11 @@ void Node::runMPC() {
         mavros_msgs::AttitudeTarget next_control;
         next_control.header.stamp = ros::Time::now();
         next_control.header.seq = mpc_seq_num_++; 
-        next_control.body_rate.x = x_opt_[IDX_RATE_X];
-        next_control.body_rate.y = x_opt_[IDX_RATE_Y];
-        next_control.body_rate.z = x_opt_[IDX_RATE_Z];
+        next_control.body_rate.x = x_opt_(IDX_RATE_X);
+        next_control.body_rate.y = x_opt_(IDX_RATE_Y);
+        next_control.body_rate.z = x_opt_(IDX_RATE_Z);
         next_control.type_mask = 128;
-        double thrust = (u_opt_[0] + u_opt_[1] + u_opt_[2] + u_opt_[3]) / 4;
+        double thrust = (u_opt_(0) + u_opt_(1) + u_opt_(2) + u_opt_(3)) / 4;
         if (ground_level_) {
             thrust *= 0.5;
         } 
@@ -337,11 +369,11 @@ void Node::runMPC() {
         next_control.header.stamp = ros::Time::now();
         next_control.header.seq = mpc_seq_num_++;
         next_control.armed = true;
-        next_control.bodyrates.x = x_opt_[IDX_RATE_X];
-        next_control.bodyrates.y = x_opt_[IDX_RATE_Y];
-        next_control.bodyrates.z = x_opt_[IDX_RATE_Z];
+        next_control.bodyrates.x = x_opt_(IDX_RATE_X);
+        next_control.bodyrates.y = x_opt_(IDX_RATE_Y);
+        next_control.bodyrates.z = x_opt_(IDX_RATE_Z);
         next_control.control_mode = 2;
-        double collective_thrust = (u_opt_[0] + u_opt_[1] + u_opt_[2] + u_opt_[3]);
+        double collective_thrust = (u_opt_(0) + u_opt_(1) + u_opt_(2) + u_opt_(3));
         collective_thrust *= quad_max_thrust_;
         collective_thrust /= quad_mass_ ;
         if (ground_level_) {
@@ -353,7 +385,7 @@ void Node::runMPC() {
     // Publish motor thrusts
     mav_msgs::Actuators motor_thrusts;
     motor_thrusts.header.stamp = ros::Time::now();
-    motor_thrusts.angular_velocities.assign(u_opt_.begin(), u_opt_.end());
+    motor_thrusts.angular_velocities = std::vector<double>(u_opt_.data(), u_opt_.data() + u_opt_.size());
     motor_thrust_pub_.publish(motor_thrusts);
 }
 
@@ -364,14 +396,15 @@ void Node::setReferenceTrajectory() {
 
     // Check if landing mode
     if (landing_) {
-        std::vector<std::vector<double>> x_ref(1, std::vector<double>(MPC_NX, 0.0));
-        std::vector<std::vector<double>> u_ref(1, std::vector<double>(MPC_NU, 0.0));
-        std::copy(x_ref_.back().begin(), x_ref_.back().begin() + IDX_VELOCITY_START, x_ref[0].begin());
-        double dz = (land_z_ > x_[2]) ? land_dz_ : (land_z_ < x_[2]) ? -land_dz_ : 0.0;
-        x_ref[0][2] = (dz > 0) ? std::min(land_z_, x_[2] + dz) : std::max(land_z_, x_[2] + dz);
-        
+        Eigen::MatrixXd x_ref = Eigen::MatrixXd::Zero(1, MPC_NX);
+        Eigen::MatrixXd u_ref = Eigen::MatrixXd::Zero(1, MPC_NU);
+        // Copy only the Position and Quaternion states from x_ref_
+        x_ref.row(0).head(N_POSITION_STATES + N_QUATERNION_STATES) = x_ref_.row(x_ref_.rows() - 1).head(N_POSITION_STATES + N_QUATERNION_STATES);
+        double dz = (land_z_ > x_(2)) ? land_dz_ : (land_z_ < x_(2)) ? -land_dz_ : 0.0;
+        x_ref(0, 2) = (dz > 0) ? std::min(land_z_, x_(2) + dz) : std::max(land_z_, x_(2) + dz);
+
         // Reached landing height
-        if (std::abs(x_[2] - land_z_) < land_thr_) {
+        if (std::abs(x_(2) - land_z_) < land_thr_) {
             if (!ground_level_) {
                 ROS_INFO("Vehicle at Ground Level");
                 ground_level_ = true;
@@ -387,66 +420,67 @@ void Node::setReferenceTrajectory() {
             //     }
             //     ROS_INFO("Vehicle Disarmed");
             // }
-            x_ref_.clear();
-            u_ref_.clear();
-            t_ref_.clear();
+            x_ref_.resize(0, 0);
+            u_ref_.resize(0, 0);
+            t_ref_.resize(0);  
             // TODO: Check if it gets cleared here correctly. its not accepting new trajectory
             x_initial_reached_ = false;
             mpc_idx_ = 0;
             landing_ = false;
+            ref_received_ = false;
+        }
+        if (with_gp_) {
+            gp_mpc_->setParams(mpc_param_);
         }
         return gp_mpc_->setReference(x_ref, u_ref);
     }
 
     // Check if reference trajectory is set up. If not, pick current position and keep hovering
-    if (x_ref_.empty()) {
-        std::vector<std::vector<double>> x_ref(1, std::vector<double>(MPC_NX, 0.0));
-        std::vector<std::vector<double>> u_ref(1, std::vector<double>(MPC_NU, 0.0));
+    if (!ref_received_) {
+        Eigen::MatrixXd x_ref(1, MPC_NX);
+        Eigen::MatrixXd u_ref(1, MPC_NU);
         // Select current position as provisional hovering position
-        if (x_ref_prov_.empty()) {
-            x_ref_prov_.insert(x_ref_prov_.end(), x_.begin(), x_.begin() + N_POSITION_STATES + N_QUATERNION_STATES);
-            x_ref_prov_.insert(x_ref_prov_.end(), N_VELOCITY_STATES + N_RATE_STATES , 0);
+        if (x_ref_prov_.isZero()) {
+            x_ref_prov_.head(N_POSITION_STATES + N_QUATERNION_STATES) = x_.segment(0, N_POSITION_STATES + N_QUATERNION_STATES);
+            x_ref_prov_.tail(N_VELOCITY_STATES + N_RATE_STATES).setZero();
             ROS_INFO("Selecting current position as provisional setpoint.");
         }
-        if (u_ref_prov_.empty()) {
-            u_ref_prov_ = {0, 0, 0, 0};
+        if (u_ref_prov_.isZero()) {
+            u_ref_prov_.setZero();
         }
         // Fill x_ref with x_ref_prov_
-        for (auto& row: x_ref) {
-            std::copy(x_ref_prov_.begin(), x_ref_prov_.end(), row.begin());
-        }
+        x_ref.row(0).head(MPC_NX) = x_ref_prov_;
         // Fill u_ref with u_ref_prov_
-        for (auto& row: u_ref) {
-            std::copy(u_ref_prov_.begin(), u_ref_prov_.end(), row.begin());
+        u_ref.row(0).head(MPC_NU) = u_ref_prov_;
+
+        if (with_gp_) {
+            gp_mpc_->setParams(mpc_param_);
         }
         return gp_mpc_->setReference(x_ref, u_ref);
     }
 
     // If reference exists then exit out of provisional hovering mode
-    if (!x_ref_prov_.empty()) {
-        x_ref_prov_.clear();
-        u_ref_prov_.clear();
+    if (!x_ref_prov_.isZero()) {
+        x_ref_prov_.setZero();
+        u_ref_prov_.setZero();
         ground_level_ = false;
         ROS_INFO("Abandoning provisional setpoint.");
     }
 
     // Check if starting position of trajectory has been reached
     if (!x_initial_reached_) {
-        std::vector<std::vector<double>> x_ref(1, std::vector<double>(MPC_NX, 0.0));
-        std::vector<std::vector<double>> u_ref(1, std::vector<double>(MPC_NU, 0.0));
+        Eigen::MatrixXd x_ref = Eigen::MatrixXd::Zero(1, MPC_NX);
+        Eigen::MatrixXd u_ref = Eigen::MatrixXd::Zero(1, MPC_NU);
         // Compute distance to initial position of trajectory
-        // Convert std::vector to Eigen::VectorXd
-        Eigen::VectorXd x_vec = Eigen::Map<const Eigen::VectorXd>(x_.data(), x_.size());
-        Eigen::VectorXd x_ref_vec = Eigen::Map<const Eigen::VectorXd>(x_ref_[0].data(), x_ref_[0].size());
+        Eigen::VectorXd x_ref_vec = x_ref_.row(0);
         // Create quaternion error from x and x_ref
-        Eigen::Quaterniond q_eig(x_vec[3], x_vec[4], x_vec[5], x_vec[6]); // Note the order: w, x, y, z
-        Eigen::Quaterniond q_ref(x_ref_vec[3], x_ref_vec[4], x_ref_vec[5], x_ref_vec[6]);
-        Eigen::Quaterniond q_error = q_eig * q_ref.inverse();
-        Eigen::VectorXd e(x_vec.size() - N_RATE_STATES - 1); // Adjust size based on actual dimensions
+        Eigen::Quaterniond q_ref(x_ref_vec(3), x_ref_vec(4), x_ref_vec(5), x_ref_vec(6));
+        Eigen::Quaterniond q_error = q_ * q_ref.inverse();
+        Eigen::VectorXd e(N_STATES - N_RATE_STATES - 1); // Adjust size based on actual dimensions
         // Fill e with concatenation of differences
-        e << (x_vec.head(N_POSITION_STATES) - x_ref_vec.head(N_POSITION_STATES)),
+        e << (x_.head(N_POSITION_STATES) - x_ref_vec.head(N_POSITION_STATES)),
               q_error.vec(),
-             (x_vec.segment(IDX_VELOCITY_START, N_VELOCITY_STATES) - x_ref_vec.segment(IDX_VELOCITY_START, N_VELOCITY_STATES));
+             (x_.segment(IDX_VELOCITY_START, N_VELOCITY_STATES) - x_ref_vec.segment(IDX_VELOCITY_START, N_VELOCITY_STATES));
         if (std::sqrt(e.dot(e)) < init_thr_) {
             // Initial position of trajectory has been reached
             x_initial_reached_ = true;
@@ -457,41 +491,63 @@ void Node::setReferenceTrajectory() {
             msg.data = true;
             record_pub_.publish(msg);
             // Set reference to initial linear and angualr position of trajectory
-            std::copy(x_ref_[0].begin(), x_ref_[0].begin() + IDX_VELOCITY_START, x_ref[0].begin());
+            x_ref.row(0) = x_ref_.row(0);
         } else {
             // Initial Position has not been reached yet 
             // Fly the drone toward initial position of trajectory
-            double dx = (x_ref_[0][0] > x_[0]) ? init_v_ : (x_ref_[0][0] < x_[0]) ? -init_v_ : 0.0;
-            double dy = (x_ref_[0][1] > x_[1]) ? init_v_ : (x_ref_[0][1] < x_[1]) ? -init_v_ : 0.0;
-            double dz = (x_ref_[0][2] > x_[2]) ? init_v_ : (x_ref_[0][2] < x_[2]) ? -init_v_ : 0.0;
+            double dx = (x_ref_(0, 0) > x_(0)) ? init_v_ : (x_ref_(0, 0) < x_(0)) ? -init_v_ : 0.0;
+            double dy = (x_ref_(0, 1) > x_(1)) ? init_v_ : (x_ref_(0, 1) < x_(1)) ? -init_v_ : 0.0;
+            double dz = (x_ref_(0, 2) > x_(2)) ? init_v_ : (x_ref_(0, 2) < x_(2)) ? -init_v_ : 0.0;
             // Set reference position in the direction of or at the init. position of trajectory
-            x_ref[0][0] = (dx > 0) ? std::min(x_ref_[0][0], x_[0] + dx) : std::max(x_ref_[0][0], x_[0] + dx);
-            x_ref[0][1] = (dy > 0) ? std::min(x_ref_[0][1], x_[1] + dy) : std::max(x_ref_[0][1], x_[1] + dy);
-            x_ref[0][2] = (dz > 0) ? std::min(x_ref_[0][2], x_[2] + dz) : std::max(x_ref_[0][2], x_[2] + dz);
-            // Set angular position of drone to init. angular position of trajectory
-            std::copy(x_ref_[0].begin()+IDX_QUATERNION_START, x_ref_[0].begin()+IDX_VELOCITY_START, x_ref[0].begin()+IDX_QUATERNION_START);
+            x_ref(0, 0) = (dx > 0) ? std::min(x_ref_(0, 0), x_(0) + dx) : std::max(x_ref_(0, 0), x_(0) + dx);
+            x_ref(0, 1) = (dy > 0) ? std::min(x_ref_(0, 1), x_(1) + dy) : std::max(x_ref_(0, 1), x_(1) + dy);
+            x_ref(0, 2) = (dz > 0) ? std::min(x_ref_(0, 2), x_(2) + dz) : std::max(x_ref_(0, 2), x_(2) + dz);
+            // Set angular position of drone to initial angular position of trajectory
+            x_ref.row(0).segment(IDX_QUATERNION_START, N_QUATERNION_STATES) = x_ref_.row(0).segment(IDX_QUATERNION_START, N_QUATERNION_STATES);
+        }
+        if (with_gp_) {
+            gp_mpc_->setParams(mpc_param_);
         }
         return gp_mpc_->setReference(x_ref, u_ref);
     }
     
     // Executing Trajectory Tracking
     if (mpc_idx_ < ref_len_) {
-        std::vector<std::vector<double>> x_ref(MPC_N, std::vector<double>(MPC_NX, 0.0));
-        std::vector<std::vector<double>> u_ref(MPC_N, std::vector<double>(MPC_NU, 0.0));
+        Eigen::MatrixXd x_ref = Eigen::MatrixXd::Zero(MPC_N, MPC_NX);
+        Eigen::MatrixXd u_ref = Eigen::MatrixXd::Zero(MPC_N, MPC_NU);
+        
+        // Downsample x_ref_ as it is given in 50Hz 
+        // but the MPC horizon is modelled at different rate given by control_freq_factor
+        // In this case 10Hz
         for (int i = 0; i < MPC_N; ++i) {
-            // TODO: Not exactly same as np.arange but could be okay
-            int ii = std::min(i * control_freq_factor_ + mpc_idx_, ref_len_-1);
-            std::copy(x_ref_[ii].begin(), x_ref_[ii].end(), x_ref[i].begin());
-            std::copy(u_ref_[ii].begin(), u_ref_[ii].end(), u_ref[i].begin());
+            // Use min to avoid index overflow
+            int ii = std::min(i * control_freq_factor_ + mpc_idx_, ref_len_ - 1);
+            // Copy the relevant row from x_ref_ and u_ref_ to x_ref and u_ref
+            x_ref.row(i) = x_ref_.row(ii);
+            u_ref.row(i) = u_ref_.row(ii);
+        }
+        if (with_gp_) {
+            mpc_param_.row(0).head(MPC_NX) = x_;
+            for (int i = 0; i < n_features_; ++i) {
+                // torch::Tensor vel = torch::tensor(x_(x_features_[i]));
+                gp_input_[0]  = torch::tensor(x_(x_features_[i])).unsqueeze(0);
+                gp_corr_(0, i) = gp_model_[i].forward(gp_input_).toTensor().item<double>();
+            }
+            for (int i = 1; i < MPC_N; ++i) {
+                int ii = std::min(i * control_freq_factor_ + mpc_idx_, ref_len_ - 1);
+                gp_corr_.row(i) = gp_corr_ref_.row(ii);
+            }
+            mpc_param_.block(0, MPC_NX, MPC_N, n_features_) = gp_corr_;
+            gp_mpc_->setParams(mpc_param_);
         }
         mpc_idx_++;
         return gp_mpc_->setReference(x_ref, u_ref);    
 
     } else if (mpc_idx_ == ref_len_) { 
         // End of reference reached
-        std::vector<std::vector<double>> x_ref(1, std::vector<double>(MPC_NX, 0.0));
-        std::vector<std::vector<double>> u_ref(1, std::vector<double>(MPC_NU, 0.0));
-        // Compute MSE
+        Eigen::MatrixXd x_ref = Eigen::MatrixXd::Zero(1, MPC_NX);
+        Eigen::MatrixXd u_ref = Eigen::MatrixXd::Zero(1, MPC_NU);
+        // Compute Optimization dt
         optimization_dt_ /= mpc_idx_;
         ROS_INFO("Tracking complete. Mean MPC opt. time: %.3f ms", optimization_dt_*1000);
 
@@ -500,13 +556,17 @@ void Node::setReferenceTrajectory() {
         ROS_INFO("Landing...");
 
         // Set reference to final linear and angualr position of trajectory
-        std::copy(x_ref_.back().begin(), x_ref_.back().begin() + IDX_VELOCITY_START, x_ref[0].begin());
-
+        x_ref.row(0).head(IDX_VELOCITY_START) = x_ref_.row(ref_len_ - 1).head(N_POSITION_STATES + N_QUATERNION_STATES);
         // Stop recording
         x_initial_reached_ = false;
         std_msgs::Bool msg;
         msg.data = false;
         record_pub_.publish(msg);
+        if (with_gp_) {
+            mpc_param_ = MatrixXd::Zero(MPC_N, MPC_NP);
+            mpc_param_(0, MPC_NP-1) = 1; // TRIGGER VALUE
+            gp_mpc_->setParams(mpc_param_);
+        }
         return gp_mpc_->setReference(x_ref, u_ref);
     }
 }
@@ -515,7 +575,7 @@ void Node::run() {
     ros::Rate rate(1);
     while (!ros::isShuttingDown()) {
         std_msgs::Bool msg;
-        msg.data = !(x_ref_.empty() && x_available_);
+        msg.data = !(!ref_received_ && x_available_);
         status_pub_.publish(msg);
         rate.sleep();
     }

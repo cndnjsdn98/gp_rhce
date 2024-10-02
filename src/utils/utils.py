@@ -36,6 +36,22 @@ def safe_mkdir_recursive(directory, overwrite=False):
             except:
                 print('Error while removing directory: {0}'.format(directory))
 
+def vw_to_vb(x):
+    """
+    Applies inverse rotation on the system states to return the 
+    velocity states to be in Body Frame.
+    :param x: 13-length array of quadrotor states 
+              where velocity is in World frame. [p, q, v_w, w] 
+    :return xb: 13-length array of quadrotor states 
+               where velocity is in Body frame
+    """
+    xb = np.copy(x)
+    q = x[3:7]
+    vw = x[7:10]
+    vb = v_dot_q(vw, quaternion_inverse(q))
+    xb[7:10] = vb
+    return xb
+
 def v_dot_q(v, q):
     rot_mat = q_to_rot_mat(q)
     if isinstance(q, np.ndarray):

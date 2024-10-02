@@ -31,15 +31,11 @@ GP_MHE::GP_MHE(std::string& mhe_type) {
 
     // Initialize MHE parameters
     mhe_type_ = mhe_type;
-    // gpy_corr_.setZero();
     if (mhe_type_ == "kinematic") {
         x0_bar_ << 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9.81;
-        // x0_bar_[IDX_Q_W] = 1;
-        // x0_bar_[IDX_A_Z] = 9.81;
         n_meas_states_ = N_POSITION_STATES + N_RATE_STATES + N_ACCEL_STATES;
     } else if (mhe_type_ == "dynamic") {
         x0_bar_ << 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0;
-        // x0_bar_[IDX_Q_W] = 1;
         n_meas_states_ = N_POSITION_STATES + N_RATE_STATES;
     }
 
@@ -50,10 +46,6 @@ GP_MHE::GP_MHE(std::string& mhe_type) {
     yref_0_.setZero();
     yref_.setZero();
     u_.setZero();
-
-    // std::fill_n(yref_0_, NY0, 0.0);
-    // std::fill_n(yref_, NY, 0);
-    // std::fill_n(u_, NP, 0);
 }   
 
 // Deconstructor
@@ -62,48 +54,21 @@ GP_MHE::~GP_MHE() {
 }
 
 void GP_MHE::setHistory(const Eigen::MatrixXd& y_history, const Eigen::MatrixXd& u_history) {
-    // yref_0_ = y_history.row(0);
-    // yref_0_.segment(n_meas_states_ + MHE_NU, MHE_NX) = x0_bar_;
+    yref_0_.head(n_meas_states_) = y_history.row(0);
+    yref_0_.segment(n_meas_states_ + MHE_NU, NX) = x0_bar_;
+    // ocp_nlp_cost_model_set(nlp_config_, nlp_dims_, nlp_in_, 0, "yref", static_cast<void*>(yref_0_.data()));
+    ocp_nlp_cost_model_set(nlp_config_, nlp_dims_, nlp_in_, 0, "yref", &yref_0_);
 
-    double yref_0[NY0] = {};    
-    if (mhe_type_ == "kinematic") {
-        Eigen::Map<Eigen::Matrix<double, N_KIN_MEAS_STATES, 1>> (&yref_0[0], N_KIN_MEAS_STATES, 1) = y_history.row(0);
-        Eigen::Map<Eigen::Matrix<double, NX, 1>> (&yref_0[N_KIN_MEAS_STATES+MHE_NU], NX, 1) = x0_bar_;
-    } else {
-        Eigen::Map<Eigen::Matrix<double, N_DYN_MEAS_STATES, 1>> (&yref_0[0], N_DYN_MEAS_STATES, 1) = y_history.row(0);
-        Eigen::Map<Eigen::Matrix<double, NX, 1>> (&yref_0[N_DYN_MEAS_STATES+MHE_NU], NX, 1) = x0_bar_;
-    }
-
-    ocp_nlp_cost_model_set(nlp_config_, nlp_dims_, nlp_in_, 0, "yref", &yref_0);
-    
     for (int i = 1; i < MHE_N; ++i) { 
-        // yref_ = y_history.row(i);
-
-        double yref[NY] = {};
-        std::fill_n(yref, NY, 0);
-        if (mhe_type_ == "kinematic") {
-            Eigen::Map<Eigen::Matrix<double, N_KIN_MEAS_STATES, 1>> (&yref[0], N_KIN_MEAS_STATES, 1) = y_history.row(i);
-        } else {
-            Eigen::Map<Eigen::Matrix<double, N_DYN_MEAS_STATES, 1>> (&yref[0], N_DYN_MEAS_STATES, 1) = y_history.row(i);
-        }
-        ocp_nlp_cost_model_set(nlp_config_, nlp_dims_, nlp_in_, i, "yref", &yref);
+        yref_.head(n_meas_states_) = y_history.row(i);
+        // ocp_nlp_cost_model_set(nlp_config_, nlp_dims_, nlp_in_, i, "yref", static_cast<void*>(yref_.data()));
+        ocp_nlp_cost_model_set(nlp_config_, nlp_dims_, nlp_in_, i, "yref", &yref_);
     }
 
     if (mhe_type_ == "dynamic") {
         for (int i = 0; i < MHE_N; ++i) { 
-            // u_ = u_history.row(i);
-
-            double u[NP] = {};
-            Eigen::Map<Eigen::Matrix<double, NP, 1>> (&u[0], NP, 1) = u_history.row(i);
-            // for (int i = 0; i < 4; ++i) {
-            //     std::cout << u[i] * 8.7 / 0.795 << " ";
-            // }
-            // std::cout << std::endl;
-            // for (int i = 0; i < 4; ++i) {
-            //     std::cout << u[i] << " ";
-            // }
-            // std::cout << std::endl;
-            mhe_acados_update_params(acados_ocp_capsule_, i, &u[0], NP);
+            u_ = u_history.row(i);
+            mhe_acados_update_params(acados_ocp_capsule_, i, u_.data(), NP);
         }
     }
 }
@@ -118,12 +83,12 @@ int GP_MHE::solveMHE(const Eigen::MatrixXd& y_history, const Eigen::MatrixXd& u_
         return status_;
     } 
 
-    ocp_nlp_out_get(nlp_config_, nlp_dims_, nlp_out_, 1, "x", &x0_bar_[0]);
+    ocp_nlp_out_get(nlp_config_, nlp_dims_, nlp_out_, 1, "x", &x0_bar_(0));
     return status_;
 }
 
 void GP_MHE::getStateEst(Eigen::VectorXd& x_est) {
-    ocp_nlp_out_get(nlp_config_, nlp_dims_, nlp_out_, MHE_N, "x", &x_est[0]);
+    ocp_nlp_out_get(nlp_config_, nlp_dims_, nlp_out_, MHE_N, "x", &x_est(0));
 }
 
 double GP_MHE::getOptimizationTime() {

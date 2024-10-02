@@ -8,7 +8,8 @@ import pandas as pd
 import numpy as np
 from src.utils.utils import safe_mkdir_recursive
 from src.gp.gpy_model import *
-from utils.DirectoryConfig import DirectoryConfig as DirConfig
+from src.utils.DirectoryConfig import DirectoryConfig as DirConfig
+import matplotlib.pyplot as plt
 
 class GPyModelWrapper:
     """
@@ -43,20 +44,18 @@ class GPyModelWrapper:
         if model_dir is not None:
             self.gp_model_dir = os.path.join(model_dir, model_name)
         else:
-            self.gp_model_dir = os.path.join(DirConfig.GP_MODELS_DIR, self.model_type, model_name)
-        
+            self.gp_model_dir = os.path.join(DirConfig.GP_MODELS_DIR, model_name)
+
         # Check if a model exists in model_name
-        if load and model_name is not None:
-            if os.path.exists(os.path.join(self.gp_model_dir, "gpy_config.json")):
+        if load and model_name is not None and os.path.exists(os.path.join(self.gp_model_dir, "gpy_config.json")):
                 # If the provided model name exists then load that model
                 self.load(keep_train_data=keep_train_data)
         else:
             # Create the directory to save the gpy model and the meta data in
             try:
-                safe_mkdir_recursive(self.gp_model_dir, overwrite=True)
+                safe_mkdir_recursive(self.gp_model_dir, overwrite=False)
             except:
                 print("OVERWRITING EXISTING GP MODEL")
-                
             # Else Set up Model paramters as provided
             self.x_features = x_features
             self.u_features = u_features
@@ -66,9 +65,9 @@ class GPyModelWrapper:
             self.likelihood = None
 
     def train(self, train_x, train_y, train_iter, 
-              sig_n=None, sig_f=None, l=None, 
               induce_num=None, induce_points=None,
-              dense_model_name=None):
+              dense_model_name=None,
+              verbose=0):
         """
         Trains the GPy Model with the given input training dataset.
         :param train_x: Array of Training Input data
@@ -78,12 +77,6 @@ class GPyModelWrapper:
         :param train_iter: Integer value describing number of iterations
         for training the GPy model
         :type train_iter: integer
-        :param sig_n: list of Prior noise variance
-        :type sig_n: list
-        :param sig_f: list of Data noise variance 
-        :type sig_f: list
-        :param l: list of length scale matrix
-        :type l: list
         :param induce_num: Integer value for describing the number of inducing points 
         for variational GPy Models.
         :type induce_num: integer
@@ -93,17 +86,19 @@ class GPyModelWrapper:
         :param dense_model_name: Name of the dense model used to predict training data
         :type dense_model_name: string
         """
+        gpytorch.settings.cholesky_jitter(1e-5)
         if self.model_type == "Exact":
-            self.train_and_save_Exact_model(train_x, train_y, train_iter, 
-                                            sig_n=sig_n, sig_f=sig_f, l=l, 
-                                            dense_model_name=dense_model_name)
+            self.train_and_save_Exact_model(train_x, train_y, train_iter,
+                                            dense_model_name=dense_model_name, 
+                                            verbose=verbose)
         elif self.model_type == "Approx":
             self.train_and_save_Approx_model(train_x, train_y, train_iter,
                                              induce_num=induce_num, 
-                                             induce_points=induce_points)
+                                             induce_points=induce_points, 
+                                             verbose=verbose)
         self.machine = 1
 
-    def predict(self, input, skip_variance=False):
+    def predict(self, input, skip_variance=False, gpu=False):
         """
         Returns the predicted mean and variance value of the GPy model for 
         the given input value.
@@ -119,11 +114,19 @@ class GPyModelWrapper:
             num_dim = 3
             test_x = {}
             for i in range(len(input)):
-                test_x[i] = torch.Tensor([input[i]]).cuda()
+                test_x[i] = torch.Tensor([input[i]])
         else:
             num_dim = input.shape[1]
-            test_x = torch.Tensor(input).cuda()
+            test_x = torch.Tensor(input)
         
+        if gpu:
+            self.gpu()
+            if input.ndim == 1:
+                for i in range(len(input)):
+                    test_x[i] = test_x[i].cuda()
+            else:
+                test_x = test_x.cuda()
+
         # Make predictions by feeding model through likelihood
         with torch.no_grad(), gpytorch.settings.memory_efficient(),  \
             gpytorch.settings.fast_computations(log_prob=False, covar_root_decomposition = False), \
@@ -163,8 +166,8 @@ class GPyModelWrapper:
         gp_config = json.load(f)
         with open(os.path.join(self.gp_model_dir, "train_dataset.pkl"), "rb") as fp:
             train_dataset = pickle.load(fp)
-        train_x = train_dataset["train_x"]
-        train_y = train_dataset["train_y"]
+        train_x = torch.Tensor(train_dataset["train_x"])
+        train_y = torch.Tensor(train_dataset["train_y"])
         num_tasks = len(gp_config["x_features"])
         num_inputs = len(gp_config["y_features"])
         
@@ -173,16 +176,6 @@ class GPyModelWrapper:
         self.u_features = gp_config["u_features"]
         self.n_dim = len(self.x_features)
         self.mhe = json.loads(gp_config["mhe"].lower()) if "mhe" in gp_config else False
-
-        #  There are models that haven't implemented prior parameters
-        try:
-            l = gp_config["l"]
-            sig_n = gp_config["sig_n"]
-            sig_f = gp_config["sig_f"]
-        except:
-            l = None
-            sig_n = None
-            sig_f = None
 
         # Load GPy model
         # If models are saved in a dictionary have to load each models separately and 
@@ -194,11 +187,7 @@ class GPyModelWrapper:
             if self.model_type == "Approx":
                 model = ApproximateGPModel(torch.linspace(0, 1, gp_config["induce_num"]))
             elif self.model_type == "Exact":
-                if sig_n is not None:
-                    model = ExactGPModel(train_x[:, i], train_y[:, i], likelihood, 
-                                                l=l[i], sig_n=sig_n[i], sig_f=sig_f[i])
-                else:
-                    model = ExactGPModel(train_x[:, i], train_y[:, i], likelihood)
+                model = ExactGPModel(train_x[:, i], train_y[:, i], likelihood)
             # load state_dict
             state_dict = torch.load(os.path.join(self.gp_model_dir, "gpy_model_" + str(idx) + ".pth"))
             model.load_state_dict(state_dict)
@@ -230,8 +219,7 @@ class GPyModelWrapper:
         self.B_z = B_z
         self.machine = 1
 
-    def train_exact_model(self, train_x, train_y, train_iter, 
-                          sig_f=None, sig_n=None, l=None):
+    def train_exact_model(self, train_x, train_y, train_iter, verbose=0):
         """
         Takes in training data and training parameters and trains an approximate GPy Model.
         Returns GPy model and its likelihood 
@@ -245,8 +233,7 @@ class GPyModelWrapper:
         """
         # Set up GPy Model
         likelihood = gpytorch.likelihoods.GaussianLikelihood().cuda()
-        model = ExactGPModel(train_x, train_y, likelihood, 
-                        sig_f=sig_f, sig_n=sig_n, l=l).cuda()
+        model = ExactGPModel(train_x, train_y, likelihood).cuda()
         train_x = train_x.cuda()
         train_y = train_y.cuda()
         
@@ -263,7 +250,8 @@ class GPyModelWrapper:
             loss.backward()
             optimizer.step()
             optimizer.zero_grad()
-            print('Iter %d/%d - Loss: %.3f' % (i + 1, train_iter, loss.item()))
+            if verbose >= 2:
+                print('Iter %d/%d - Loss: %.3f' % (i + 1, train_iter, loss.item()))
 
         model.eval()
         likelihood.eval()
@@ -271,7 +259,8 @@ class GPyModelWrapper:
 
     def train_approximate_model(self, train_x, train_y, 
                                 induce_num, train_iter, 
-                                inducing_points=None):
+                                inducing_points=None,
+                                verbose=0):
         """
         Takes in training data and training parameters and trains an approximate GPy Model.
         Returns GPy model and its likelihood 
@@ -287,10 +276,9 @@ class GPyModelWrapper:
         if inducing_points is None:
             inducing_points = torch.linspace(min(train_x), max(train_x), induce_num)
 
-        learn_induce_points = inducing_points == None
         train_x = train_x.cuda()
         train_y = train_y.cuda()
-        model = ApproximateGPModel(inducing_points,learn_inducing_points=learn_induce_points).cuda()
+        model = ApproximateGPModel(inducing_points).cuda()
         likelihood = gpytorch.likelihoods.GaussianLikelihood().cuda()
         
         # Set up Optimizer and objective function
@@ -306,14 +294,15 @@ class GPyModelWrapper:
             loss.backward()
             optimizer.step()
             optimizer.zero_grad()
-            print('Iter %d/%d - Loss: %.3f' % (i + 1, train_iter, loss.item()))
+            if verbose >= 2:
+                print('Iter %d/%d - Loss: %.3f' % (i + 1, train_iter, loss.item()))
         model.eval()
         likelihood.eval()
         return model, likelihood
 
-    def train_and_save_Exact_model(self, train_x, train_y, train_iter, 
-                                   sig_n=None, sig_f=None, l=None, 
-                                   dense_model_name=None):
+    def train_and_save_Exact_model(self, train_x, train_y, train_iter,
+                                   dense_model_name=None, 
+                                   verbose=0):
         """
         Trains Exact GPy Model. 
         :param train_x: Array of Training Input data
@@ -322,12 +311,6 @@ class GPyModelWrapper:
         :type train_y: torch.Tensor
         :param train_iter: Number of iterations training the GPy Model.
         :type train_iter: integer
-        :param sig_n: list of Prior noise variance
-        :type sig_n: list
-        :param sig_f: list of Data noise variance 
-        :type sig_f: list
-        :param l: list of length scale matrix
-        :type l: list
         :param dense_model_name: Name of the dense model used to predict training data
         :type dense_model_name: string
         """
@@ -335,31 +318,31 @@ class GPyModelWrapper:
         likelihood_dict = {}
         tic = time.time()
         # Train GPy Model
-        for i, idx in enumerate(self.x_features):
-            print("########## BEGIN TRAINING idx {} ##########".format(idx))
-            if sig_n is not None:
-                model, likelihood = self.train_exact_model(train_x[:, i], train_y[:, i], train_iter,
-                    sig_f=sig_f[i], sig_n=sig_n[i], l=l[i])
-            else: 
-                model, likelihood = self.train_exact_model(train_x[:, i], train_y[:, i], train_iter)
-            model_dict[idx] = model
-            likelihood_dict[idx] = likelihood
+        for i, x_feature in enumerate(self.x_features):
+            if verbose >= 1:
+                print("########## BEGIN TRAINING idx {} ##########".format(x_feature))
+            model, likelihood = self.train_exact_model(train_x[:, i], train_y[:, i], train_iter, verbose=verbose)
+            model_dict[x_feature] = model
+            likelihood_dict[x_feature] = likelihood
         self.model = model_dict
         self.likelihood = likelihood_dict
-        print("########## FINISHED TRAINING ##########")
-        print("Elapsed time to train the GP: {:.2f}s".format(time.time() - tic))
+        if verbose >= 1:
+            print("########## FINISHED TRAINING ##########")
+            print("Elapsed time to train the GP: {:.2f}s".format(time.time() - tic))
         # Save GP Model
         train_length = train_x.shape[0]    
         # Save gpy model
-        for i, idx in enumerate(self.x_features):
-            model = model_dict[idx]
-            print(f"############## idx {idx} params ##############")
-            for param_name, param in model.named_parameters():
-                print(f'Parameter name: {param_name:42} value = {param.item()}')
-            torch.save(model.state_dict(), os.path.join(self.gp_model_dir, "gpy_model_" + str(idx) + ".pth"))  
-            scripted_model = torch.jit.script(model)
-            scripted_model.save(os.path.join(self.gp_model_dir, "scripted_gpy_model_" + str(idx) + ".pth"))
-        print(self.model_name)
+        for i, x_feature in enumerate(self.x_features):
+            model = model_dict[x_feature].cpu().double()
+            torch.save(model.state_dict(), os.path.join(self.gp_model_dir, "gpy_model_" + str(x_feature) + ".pth"))  
+            example_input = train_x[:1, i].clone().detach().double()
+            with torch.no_grad(), gpytorch.settings.fast_pred_var(), gpytorch.settings.trace_mode():
+                model.eval()
+                _ = model(example_input)
+                scripted_model = torch.jit.trace(MeanVarModelWrapper(model).double(), example_input)
+                scripted_model.save(os.path.join(self.gp_model_dir, "scripted_gpy_model_" + str(x_feature) + ".pth"))
+        if verbose >= 1:
+            print(self.model_name)
         # Save Meta data
         meta_data = {"x_features": self.x_features, 
                      "y_features": self.y_features, 
@@ -368,14 +351,6 @@ class GPyModelWrapper:
                      "train_iter": train_iter, 
                      "mhe": str(self.mhe),
                      "dense_model_name": dense_model_name if dense_model_name is not None else ""}
-        if sig_n is not None:
-            meta_data["sig_n"] = sig_n
-            meta_data["sig_f"] = sig_f
-            meta_data["l"] = l
-        else:
-            meta_data["sig_n"] = None
-            meta_data["sig_f"] = None
-            meta_data["l"] = None
         with open(os.path.join(self.gp_model_dir, "gpy_config.json"), 'w') as f:
             json.dump(meta_data, f)
         # Save Training Data
@@ -384,7 +359,7 @@ class GPyModelWrapper:
             pickle.dump(train_dataset, fp)
         
     def train_and_save_Approx_model(self, train_x, train_y, train_iter,
-                                    induce_num=20, induce_points=None):
+                                    induce_num=20, induce_points=None, verbose=0):
         """
         Trains Approx GPy Model. If the induce_num is not given then it induces with
         20 points, and if the induce_num is given then it trains an
@@ -406,26 +381,33 @@ class GPyModelWrapper:
         likelihood_dict = {}
         tic = time.time()
         # Train GPy Model
-        for i, idx in enumerate(self.x_features):
-            print("########## BEGIN TRAINING idx {} ##########".format(idx))
+        for i, x_feature in enumerate(self.x_features):
+            if verbose >= 1:
+                print("########## BEGIN TRAINING idx {} ##########".format(x_feature))
             model, likelihood = self.train_approximate_model(train_x[:, i], train_y[:, i], induce_num, 
-                                train_iter, inducing_points=induce_points[:, i] if induce_points is not None else None)
-            model_dict[idx] = model
-            likelihood_dict[idx] = likelihood
+                                train_iter, inducing_points=induce_points[:, i] if induce_points is not None else None,
+                                verbose=verbose)
+            model_dict[x_feature] = model
+            likelihood_dict[x_feature] = likelihood
         self.model = model_dict
         self.likelihood = likelihood_dict
-        print("########## FINISHED TRAINING ##########")
-        print("Elapsed time to train the GP: {:.2f}s".format(time.time() - tic))
+        if verbose >= 1:
+            print("########## FINISHED TRAINING ##########")
+            print("Elapsed time to train the GP: {:.2f}s".format(time.time() - tic))
         # Save GPy Model
         train_length = train_x.shape[0]
-
+        if verbose >= 1:
+            print(self.model_name)
         # Save GPy Models
-        for i, idx in enumerate(self.x_features):
-            model = model_dict[idx]
-            torch.save(model.state_dict(), os.path.join(self.gp_model_dir, "gpy_model_" + str(idx) + ".pth"))
-            scripted_model = torch.jit.script(model)
-            scripted_model.save(os.path.join(self.gp_model_dir, "scripted_gpy_model_" + str(idx) + ".pth"))
-        print(self.model_name)
+        for i, x_feature in enumerate(self.x_features):
+            model = model_dict[x_feature].cpu().double()
+            torch.save(model.state_dict(), os.path.join(self.gp_model_dir, "gpy_model_" + str(x_feature) + ".pth"))
+            wrapped_model = MeanVarModelWrapper(model).double()
+            example_input = train_x[:1, i].clone().detach().double()
+            with torch.no_grad(), gpytorch.settings.fast_pred_var(), gpytorch.settings.trace_mode():
+                _ = wrapped_model(example_input)
+                scripted_model = torch.jit.trace(wrapped_model, example_input)
+                scripted_model.save(os.path.join(self.gp_model_dir, "scripted_gpy_model_" + str(x_feature) + ".pth"))
         # Save meta data
         train_length = train_x.shape[1]
         u_features = []
@@ -437,27 +419,106 @@ class GPyModelWrapper:
         train_dataset = {"train_x": np.array(train_x), "train_y": np.array(train_y)}
         with open(os.path.join(self.gp_model_dir, "train_dataset.pkl"), "wb") as fp:
             pickle.dump(train_dataset, fp)
-    
+
+    def visualize_model(self, x, y, dt=0.02):
+        """
+        Visualize the model
+        """
+        # Plot data
+        # Set Matplotlib interpreter as Latex
+        plt.rcParams['text.usetex'] = True
+        # params= {'text.latex.preamble' : [r'\usepackage{amsmath}']}
+        # plt.rcParams.update(params)
+        params= {'text.latex.preamble' : [r'\usepackage{amsmath}', r'\usepackage{fontenc}']}
+        plt.rcParams.update(params)
+        plt.rcParams['font.family'] = 'DeJavu Serif'
+        plt.rcParams['font.serif'] = ['Computer Modern Roman']
+        
+        # Font sizes
+        SMALL_SIZE = 12
+        MEDIUM_SIZE = 13
+        BIGGER_SIZE = 14
+        plt.rc('font', size=BIGGER_SIZE)          # controls default text sizes
+        plt.rc('axes', titlesize=BIGGER_SIZE)     # fontsize of the axes title
+        plt.rc('axes', labelsize=BIGGER_SIZE)    # fontsize of the x and y labels
+        plt.rc('xtick', labelsize=BIGGER_SIZE)    # fontsize of the tick labels
+        plt.rc('ytick', labelsize=BIGGER_SIZE)    # fontsize of the tick labels
+        plt.rc('legend', fontsize=MEDIUM_SIZE)    # legend fontsize
+        plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
+        
+        label_in = ["p_x", "p_y", "p_z", "1", "q_x", "q_y", "q_z", "v_x", "v_y", "v_z", "w_x", "w_y", "w_z"]
+        label_out = ["v_x", "v_y", "v_z", "1", "w_x", "w_y", "w_z", "a_x", "a_y", "a_z", "aw_x", "aw_y", "aw_z"]
+        save_name = ["Vx", "Vy", "Vz"]
+
+        # Plot along t
+        # Predict using GPy model
+        cov, pred = self.predict(x)
+
+        t_induce = np.linspace(0, x.shape[0] * dt, x.shape[0])
+        for i, y_feature in enumerate(self.y_features):
+            fig, ax = plt.subplots(1,1, figsize=(40,15)) 
+            ax.plot(t_induce, pred[:, i], "blue", label=r'GPy $\mu$')
+            ax.plot(t_induce, y[:, i], c='r', label="Inducing Data")
+            ax.legend(loc="best")
+            ax.set_xlabel(r'Time $[s]$', fontsize=BIGGER_SIZE) 
+            ax.set_ylabel(r"$" + label_out[y_feature] + "^{error}$", fontsize=BIGGER_SIZE)
+            # ax.set_title(r"Induce Dataset: $" + label_in[idx_out] + "$")
+            ax.tick_params(axis='both', which='major', labelsize=MEDIUM_SIZE)
+            ax.legend()
+            fig_save_dir = os.path.join(self.gp_model_dir,  save_name[i] + "_induce.pdf")
+            fig.savefig(fig_save_dir, dpi=None, facecolor='w', edgecolor='w',
+                orientation='portrait', format='pdf',
+                transparent=True, bbox_inches='tight', metadata=None, pad_inches=0.01)
+            plt.close(fig)
+
+        # Plot the regression of the GP models
+        lower, _ = torch.min(x, dim=0)
+        upper, _ = torch.max(x, dim=0)
+
+        x_reg = np.array([np.linspace(lower[i], upper[i], 100) for i in range(len(self.x_features))]).T
+        cov, pred = self.predict(x_reg)
+        
+        for i, idx_out in enumerate(self.y_features):
+            fig, ax = plt.subplots(1,1, figsize=(40,15)) 
+            ci = 1.96 * np.sqrt(cov[:, i])
+            ax.plot(x_reg[:, i], pred[:, i] + ci, "C1--")
+            ax.plot(x_reg[:, i], pred[:, i] - ci, "C1--")
+            ax.plot(x_reg[:, i], pred[:, i], "C1", label=r'GPy $\mu$', zorder=20)
+            ax.scatter(x[:, i], y[:, i], c='royalblue', s=17, label="Data", alpha=0.45, zorder=0)
+            ax.set_xlabel(r"${" + label_in[idx_out] + "} \mathbf{[m/s]}$", fontsize=BIGGER_SIZE) 
+            ax.set_ylabel(r"${" + label_out[idx_out] + "^{e}}$", fontsize=BIGGER_SIZE)
+            ax.tick_params(axis='both', which='major', labelsize=MEDIUM_SIZE)
+            ax.grid()
+            ax.legend()
+            # ax.set_ylim([-8, 12])
+            fig_save_dir = os.path.join(self.gp_model_dir,  save_name[i] + "_gp_regression.pdf")
+            fig.savefig(fig_save_dir, dpi=None, facecolor='w', edgecolor='w',
+                orientation='portrait', format='pdf',
+                transparent=True, bbox_inches='tight', metadata=None, pad_inches=0.01)
+            plt.close(fig)
+            
     def cpu(self):
         """
         Switch models to CPU if they are on GPU
         """
-        try:
-            self.model = self.model.cpu()
-            self.likelihood = self.likelihood.cpu()
+        # try:
+        for i, x_feature in enumerate(self.x_features):
+            self.model[x_feature] = self.model[x_feature].cpu()
+            self.likelihood[x_feature] = self.likelihood[x_feature].cpu()
             self.machine = 0
-        except:
-            print("Model already on CPU")
+        # except:
+            # print("Model already on CPU")
 
     def gpu(self):
         """
         Switch models to GPU if they are on CPU
         """
-        try:
-            self.model = self.model.cuda()
-            self.likelihood = self.likelihood.cuda()
-        except:
-            print("Model already on GPU")
+        # try:
+        for i, x_feature in enumerate(self.x_features):
+            self.model[x_feature] = self.model[x_feature].cuda()
+            self.likelihood[x_feature] = self.likelihood[x_feature].cuda()
+        # except:
+            # print("Model already on GPU")
 
     def get_Bx(self):
         return self.B_x
@@ -488,3 +549,12 @@ class GPyModelWrapper:
     
     def get_model_directory(self):
         return self.gp_model_dir
+
+    def device(self):
+        model_device = {}
+        likelihood_device = {}
+        for x_feature in self.x_features:
+            model_device[x_feature] = next(self.model[x_feature].parameters()).device
+            likelihood_device[x_feature] = next(self.likelihood[x_feature].parameters()).device
+        return model_device, likelihood_device
+        

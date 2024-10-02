@@ -108,8 +108,12 @@ class QuadOptimizer:
             self.n_param = 0
 
         # MPC param
-        self.load_m= cs.MX.sym('load_m') # quadrotor mass
-        self.mpc_param = cs.vertcat(self.load_m)
+        if self.change_mass != 0:
+            self.load_m= cs.MX.sym('load_m') # quadrotor mass
+            self.mpc_param = cs.vertcat(self.load_m)
+        else:
+            self.load_m = 0
+            self.mpc_param = np.array([])
 
         # Model Disturbance terms for MHE and MPC with GP 
         if self.mhe_with_gpyTorch:
@@ -402,7 +406,7 @@ class QuadOptimizer:
 
         f_func = self.discretize_dynamics(t_horizon, m_int_steps)
         fk = f_func(x0=x_0, p=u_seq)
-        xf = np.array(fk['xf'])
+        xf = np.squeeze(np.array(fk['xf']))
 
         return xf
 

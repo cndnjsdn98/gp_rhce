@@ -14,6 +14,7 @@
 
     <!-- Parameter Indicating GPy  -->
     <arg name="with_gp" default="False"/>
+    <param name="gp_model_dir" value="$(find gp_rhce)/gp_models/"/>
 
     <!-- Parameter to indicate to compile acados model -->
     <arg name="compile" default="True"/>

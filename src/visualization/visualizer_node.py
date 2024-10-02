@@ -19,10 +19,10 @@ from quadrotor_msgs.msg import ControlCommand
 from gp_rhce.msg import ReferenceTrajectory
 
 from src.quad_opt.quad_optimizer import QuadOptimizer
-from src.utils.utils import v_dot_q, quaternion_inverse, safe_mkdir_recursive
+from src.utils.utils import v_dot_q, quaternion_inverse, safe_mkdir_recursive, vw_to_vb
 from src.visualization.visualization import trajectory_tracking_results, state_estimation_results, test
 from src.quad_opt.quad import custom_quad_param_loader
-from utils.DirectoryConfig import DirectoryConfig as DirConfig
+from src.utils.DirectoryConfig import DirectoryConfig as DirConfig
 
 class VisualizerWrapper:
     def __init__(self):
@@ -127,15 +127,15 @@ class VisualizerWrapper:
         record_topic = rospy.get_param("/gp_mpc/record_topic", default = "/" + self.quad_name + "/record")
 
         # Subscribers
-        self.imu_sub = rospy.Subscriber(imu_topic, Imu, self.imu_callback, queue_size=10, tcp_nodelay=False)
-        self.motor_thrust_sub = rospy.Subscriber(motor_thrust_topic, Actuators, self.motor_thrust_callback, queue_size=10, tcp_nodelay=False)
-        self.odom_sub = rospy.Subscriber(odom_topic, Odometry, self.odom_callback, queue_size=10, tcp_nodelay=False)
-        self.state_est_sub = rospy.Subscriber(state_est_topic, Odometry, self.state_est_callback, queue_size=10, tcp_nodelay=False)
+        self.imu_sub = rospy.Subscriber(imu_topic, Imu, self.imu_callback, queue_size=1, tcp_nodelay=False)
+        self.motor_thrust_sub = rospy.Subscriber(motor_thrust_topic, Actuators, self.motor_thrust_callback, queue_size=1, tcp_nodelay=False)
+        self.odom_sub = rospy.Subscriber(odom_topic, Odometry, self.odom_callback, queue_size=1, tcp_nodelay=False)
+        self.state_est_sub = rospy.Subscriber(state_est_topic, Odometry, self.state_est_callback, queue_size=1, tcp_nodelay=False)
         self.acceleration_est_sub = rospy.Subscriber(acceleration_est_topic, Imu, self.acceleration_est_callback, queue_size=10, tcp_nodelay=False)
-        self.ref_sub = rospy.Subscriber(ref_topic, ReferenceTrajectory, self.ref_callback, queue_size=10, tcp_nodelay=False)
-        self.control_sub = rospy.Subscriber(control_topic, AttitudeTarget, self.control_callback, queue_size=10, tcp_nodelay=False)
-        self.control_gz_sub = rospy.Subscriber(control_gz_topic, ControlCommand, self.control_gz_callback, queue_size=10, tcp_nodelay=False)
-        self.record_sub = rospy.Subscriber(record_topic, Bool, self.record_callback, queue_size=10, tcp_nodelay=False)
+        self.ref_sub = rospy.Subscriber(ref_topic, ReferenceTrajectory, self.ref_callback, queue_size=1, tcp_nodelay=False)
+        self.control_sub = rospy.Subscriber(control_topic, AttitudeTarget, self.control_callback, queue_size=1, tcp_nodelay=False)
+        self.control_gz_sub = rospy.Subscriber(control_gz_topic, ControlCommand, self.control_gz_callback, queue_size=1, tcp_nodelay=False)
+        self.record_sub = rospy.Subscriber(record_topic, Bool, self.record_callback, queue_size=1, tcp_nodelay=False)
 
         rospy.loginfo("Visualizer on standby listening...")
         if self.mhe_type is not None:
@@ -179,30 +179,33 @@ class VisualizerWrapper:
         dt_traj = np.zeros((self.seq_len, 1))
         rospy.loginfo("Filling in MPC dataset and saving...")
         for i in tqdm(range(self.seq_len)): 
+            # TODO: Get states in body frame
             ii = i * 2
             x0 = self.x_act[ii]
             xf = self.x_act[ii+1]
+            xf_B = vw_to_vb(xf)
 
             u = self.motor_thrusts[ii]
-            _u = np.append(u, [0]) # Considering there is no mass change
+            # _u = np.append(u, [0]) # Considering there is no mass change
 
             dt = self.t_act[ii+1] - self.t_act[ii]
 
             # Dynamic Model Pred
             x_pred = self.quad_opt.forward_prop(x0, _u, t_horizon=dt)
             x_pred = x_pred[-1, np.newaxis, :]
-            x_pred_traj[i] = x_pred
-
+            x_pred_B = vw_to_vb(x_pred)
+            
             # MPC Model error
-            x_err = xf - x_pred
-            mpc_error[i] = x_err / dt if dt != 0 else 0
+            x_err = xf_B - x_pred_B
 
             # Save to array for plots
+            mpc_t[i] = self.t_act[ii]
             state_in[i] = self.x_act[ii] if self.use_groundtruth else self.x_est[ii]
             state_out[i] = self.x_act[ii+1] if self.use_groundtruth else self.x_est[ii+1]
             u_in[i] = u
-            mpc_t[i] = self.t_act[ii]
             dt_traj[i] = dt
+            x_pred_traj[i] = x_pred
+            mpc_error[i] = x_err / dt if dt != 0 else 0
         # Organize arrays to dictionary
         mpc_dict = {
             "t": mpc_t,
@@ -299,7 +302,17 @@ class VisualizerWrapper:
                 pickle.dump(mhe_dict, f)
             with open(os.path.join(mhe_dir, 'meta_data.json'), "w") as f:
                 json.dump(self.mhe_meta, f, indent=4)
+            
+            self.t_act = self.t_act[:self.seq_len * 2]
+            self.x_act = self.x_act[:self.seq_len * 2]
+            self.t_est = self.t_est[:self.seq_len * 2]
+            self.x_est = self.x_est[:self.seq_len * 2]
+            self.t_imu = self.t_imu[:self.seq_len * 2]
+            self.y = self.y[:self.seq_len * 2]
+            
             if len(self.t_acc_est) > 0:
+                self.t_acc_est = self.t_acc_est[:self.seq_len * 2]
+                self.accel_est = self.accel_est[:self.seq_len * 2]
                 state_estimation_results(mhe_dir, self.t_act, self.x_act, self.t_est, self.x_est, self.t_imu, self.y,
                                         mhe_error, t_acc_est=self.t_acc_est, accel_est=self.accel_est, file_type='png')
             else:

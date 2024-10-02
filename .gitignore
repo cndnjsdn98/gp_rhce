@@ -66,3 +66,5 @@ acados_ocp/mhe/
 **/tuning_notes.md
 
 **/libtorch/
+
+gp_models/**

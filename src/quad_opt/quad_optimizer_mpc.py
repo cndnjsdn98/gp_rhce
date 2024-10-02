@@ -25,6 +25,7 @@ from src.quad_opt.quad import custom_quad_param_loader
 from acados_template import AcadosOcp, AcadosOcpSolver
 from src.quad_opt.quad_optimizer import QuadOptimizer
 
+from src.gp.GPyModelWrapper import GPyModelWrapper
 class QuadOptimizerMPC(QuadOptimizer):
     def __init__(self, quad, t_mpc=1, n_mpc=10, 
                  q_mpc=None, qt_factor=None,r_mpc=None, 
@@ -66,7 +67,6 @@ class QuadOptimizerMPC(QuadOptimizer):
         # If using GpyTorch for MPC Set up Necessary variables
         if self.mpc_with_gpyTorch:
             self.mpc_gpy_ensemble = mpc_gpy_ensemble
-            self.mpc_gpy_ensemble.switch_modelDict_to_Batch()
             self.mpc_gpy_ensemble.cpu()
             self.mpc_gpy_x = [7, 8, 9]
             self.B_x = np.zeros((13, 3))
@@ -173,7 +173,7 @@ class QuadOptimizerMPC(QuadOptimizer):
         return ocp_mpc
    
 def main():
-    rospy.init_node("acados_compiler_mhe", anonymous=True)
+    rospy.init_node("acados_compiler_mpc", anonymous=True)
     ns = rospy.get_namespace()
     
     # Load MHE parameters
@@ -183,7 +183,16 @@ def main():
     assert quad_name != None
     with_gp = rospy.get_param(ns + 'with_gp', default=False)
     change_mass = rospy.get_param(ns + 'change_mass', default=0)
-    
+    gp_model_name = rospy.get_param(ns + 'gp_model_name', default="")
+    assert gp_model_name != ""
+    if with_gp:
+        model_type = gp_model_name.split("_")[0]
+        model_type = "Approx" if model_type == "a" else "Exact"
+
+        gp_model = GPyModelWrapper(model_type, gp_model_name, load=True, mhe=False)
+    else:
+        gp_model = None
+
     # MPC Costs
     q_p = np.ones((1,3)) * rospy.get_param(ns + 'q_p', default=35)
     q_q = np.ones((1,3)) * rospy.get_param(ns + 'q_q', default=25)
@@ -204,7 +213,8 @@ def main():
     # Compile Acados Model
     quad_opt = QuadOptimizerMPC(quad, t_mpc=t_mpc, n_mpc=n_mpc,
                                 q_mpc=q_mpc, qt_factor=qt_factor, r_mpc=r_mpc, 
-                                model_name=quad_name)
+                                model_name=quad_name,
+                                mpc_gpy_ensemble=gp_model)
     return
 
 def init_compile():

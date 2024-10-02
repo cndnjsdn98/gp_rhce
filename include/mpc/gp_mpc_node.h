@@ -19,6 +19,9 @@
 
 #include <torch/script.h>
 
+#include <iostream>
+#include <filesystem>
+
 class Node {
 private:
     // System environment
@@ -29,12 +32,13 @@ private:
     GP_MPC* gp_mpc_;
 
     // System States
-    std::vector<double> x_, u_, p_, q_, v_, w_;
+    Eigen::VectorXd x_, u_, p_, v_, w_; 
+    Eigen::Quaterniond q_;
     bool x_available_;
     std::thread status_thread_;
 
     // MPC variables
-    std::vector<double> x_opt_, u_opt_;
+    Eigen::VectorXd x_opt_, u_opt_;
     int control_freq_factor_;
     bool optimize_next_ = false, x_initial_reached_ = false,
          landing_ = false,  ground_level_ = true;
@@ -42,12 +46,13 @@ private:
     double quad_max_thrust_, quad_mass_; // only used in Gazebo env
 
     // Reference Trajectory Variables
-    std::vector<std::vector<double>> x_ref_, u_ref_;
-    std::vector<double> t_ref_, x_ref_prov_, u_ref_prov_;
+    Eigen::MatrixXd x_ref_, u_ref_;
+    Eigen::VectorXd t_ref_, x_ref_prov_, u_ref_prov_;
     std::string ref_traj_name_;
     double land_z_, land_dz_, land_thr_, init_thr_, init_v_;
     int ref_len_;
-
+    bool ref_received_;
+    
     // Recording Parameters 
     double optimization_dt_ = 0;
     int mpc_idx_ = 0, mpc_seq_num_ = 0, 
@@ -55,11 +60,14 @@ private:
 
     // GP Parameters
     bool with_gp_;
-    std::string gp_model_dir_;
+    int n_features_;
+    std::string gp_model_dir_, gp_model_name_;
+    std::vector<int> x_features_, y_features_;
     std::vector<torch::jit::IValue> gp_input_;
-    torch::jit::script::Module gp_model_;
+    std::vector<torch::jit::script::Module> gp_model_;
+    Eigen::MatrixXd gp_corr_ref_, gp_corr_, mpc_param_;
     Eigen::Vector3d vb_;
-    Eigen::Quaterniond q;
+    Eigen::Quaterniond q_inv_;
 
     // Subscriber Topics 
     std::string ref_topic_, state_est_topic_, odom_topic_, land_topic_;
@@ -108,4 +116,39 @@ public:
     void run();
 };
 
-#endif
+// Utils
+inline Eigen::Vector3d transformToBodyFrame(const Eigen::Quaterniond& q, const Eigen::Vector3d& v) {
+    return q.inverse() * v;
+}
+inline Eigen::Vector3d transformToWorldFrame(const Eigen::Quaterniond& q, const Eigen::Vector3d& v) {
+    return q * v;
+}
+
+inline Eigen::MatrixXd tensorToEigen(const std::vector<at::Tensor>& tensor) {
+    // Check that vector is not empty and get the dimensions of the first tensor
+    if (tensor.empty()) {
+        throw std::runtime_error("tensor is empty.");
+    }
+
+    // Assuming each tensor in tensor is a 1D tensor with the same size
+    int rows = tensor.size();               // Number of rows = number of tensors
+    int cols = tensor[0].size(0);           // Number of columns = size of each tensor
+
+    // Initialize an Eigen::MatrixXd of appropriate size
+    Eigen::MatrixXd eigen_matrix(rows, cols);
+
+    // Copy data from each tensor into the Eigen matrix
+    for (int i = 0; i < rows; ++i) {
+        // Ensure that the tensor is 1D and has the correct size
+        if (tensor[i].dim() != 1 || tensor[i].size(0) != cols) {
+            throw std::runtime_error("Tensor dimensions do not match expected size.");
+        }
+
+        // Copy the tensor data into the corresponding row of the Eigen matrix
+        eigen_matrix.row(i) = Eigen::Map<Eigen::VectorXd>(tensor[i].data_ptr<double>(), cols);
+    }
+
+    return eigen_matrix;
+}
+
+#endif  // _GP_MPC_NODE_H

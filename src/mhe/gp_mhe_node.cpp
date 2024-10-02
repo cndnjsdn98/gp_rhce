@@ -17,7 +17,6 @@ Node::Node(ros::NodeHandle& nh) {
     initLaunchParameters(nh);
     initSubscribers(nh);
     initPublishers(nh);
-    assert(quad_name_ != "");
     gp_mhe_ = new GP_MHE(mhe_type_);
     if (gp_mhe_ == nullptr) {
         ROS_ERROR("FAILED TO CREATE GP_MHE INSTANCE");
@@ -37,29 +36,27 @@ Node::Node(ros::NodeHandle& nh) {
     u_hist_ = MatrixXd::Zero(MHE_N, N_MOTORS);
     u_hist_cp_ = MatrixXd::Zero(MHE_N, N_MOTORS);
     if (mhe_type_ == "kinematic") {
-        acceleration_est_ = VectorXd::Zero(3);
+        acceleration_est_ = VectorXd::Zero(N_ACCEL_STATES);
     }
     
     if (p_.isZero()) {
         ROS_INFO("MHE: Waiting for Sensor Measurement...");
-        ros::Rate rate(1);
+        ros::Rate rate(10);
         while (p_.isZero() && ros::ok()) {
             ros::spinOnce();
             rate.sleep();
         }
     }
     if (mhe_type_ == "dynamic" && !input_received_) {
-        ROS_INFO("Don't initiate flight. Motor Thrusts not received yet. ");
-        // TODO: Save hover thrust in xacro drone params and rosparam that. instead of 0s
-        if (quad_name_ != "") {
-            std::string ns = ros::this_node::getNamespace();
-            nh.param<double>(ns + "/" + quad_name_ + "/hover_thrust", hover_thrust_, 0.0);
-        }
+        // ROS_INFO("Don't initiate flight. Motor Thrusts not received yet. ");
         u_ << hover_thrust_, hover_thrust_, hover_thrust_, hover_thrust_;
-    } else {
-        ROS_INFO("MHE: %s Loaded in %s", quad_name_.c_str(), environment_.c_str());
-        input_received_ = true;
-    }
+        ros::Rate rate(10);
+        while (!input_received_ && ros::ok()) {
+            ros::spinOnce();
+            rate.sleep();
+        }
+    } 
+    ROS_INFO("MHE: %s Loaded in %s", quad_name_.c_str(), environment_.c_str());
 
     optimization_dt_ = 0;
     mhe_idx_ = 0;
@@ -83,6 +80,7 @@ void Node::initLaunchParameters(ros::NodeHandle& nh) {
     // System environment
     nh.param<std::string>(ns + "/environment", environment_, "arena");
     nh.param<std::string>(ns + "/quad_name", quad_name_, "");
+    assert(quad_name_ != "");
 
     // MHE Parameters
     nh.param<std::string>(ns + "/mhe_type", mhe_type_, "kinematic");
@@ -100,9 +98,7 @@ void Node::initLaunchParameters(ros::NodeHandle& nh) {
     nh.param<std::string>(ns + "/acceleration_est_topic", acceleration_est_topic_, "/" + quad_name_ + "/acceleration_est");
 
     // Quad hover thrust
-    if (quad_name_ != "") {
-        nh.param<double>(ns + "/" + quad_name_, hover_thrust_, 0.0);
-    }
+    nh.param<double>(ns + "/" + quad_name_ + "/hover_thrust", hover_thrust_, 0.0);
 }
 
 void Node::initSubscribers(ros::NodeHandle& nh) {
@@ -217,14 +213,12 @@ void Node::recordMheCallback(const std_msgs::Bool::ConstPtr& msg) {
 }
 
 void Node::motorThrustCallback(const mav_msgs::Actuators::ConstPtr& msg) {
-    if (!input_received_ && mhe_type_ == "dynamic") {
-        ROS_INFO("MHE: %s Loaded in %s", quad_name_.c_str(), environment_.c_str());
-        input_received_ = true;
-    }
     u_ << msg->angular_velocities[0],
           msg->angular_velocities[1],
           msg->angular_velocities[2],
           msg->angular_velocities[3];
+    input_received_ = true;
+
 }
 
 void Node::poseCallback(const geometry_msgs::PoseStamped::ConstPtr& msg) {

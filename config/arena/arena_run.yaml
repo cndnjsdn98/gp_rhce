@@ -1,7 +1,4 @@
-# GP
-with_gp: False
-mhe_model_name: ""
-mhe_model_version: ""
+control_freq_factor: 5
 
 # Topic Names
 pose_topic: "/mavros/vision_pose/pose"

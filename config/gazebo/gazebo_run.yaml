@@ -1,5 +1,3 @@
-quad_name: 'hummingbird'
-use_ekf_synchronization: False
 control_freq_factor: 5
 
 # Topic Names
@@ -13,13 +11,3 @@ land_z_thr: 0.05
 # Approaching Init. Pos.
 init_thr: 0.3
 init_v: 0.5
-
-# GPy Model
-mpc_model_version: "SISO"
-mpc_model_name: "789_789_20_100_mpc_gz"
-mpc_model_type: "GPy"
-
-mhe_type: "dynamic"
-mhe_model_version: "SISO"
-mhe_model_name: "678_789_50_100_mhe_gz"
-mhe_model_type: "GPy"

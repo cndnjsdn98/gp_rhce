@@ -250,7 +250,7 @@ def main():
     quad_name = rospy.get_param(ns + 'quad_name', default=None)
     assert quad_name != None
     quad = custom_quad_param_loader(quad_name)
-    rospy.set_param(ns + "/" + quad_name + '/hover_thrust', quad.hover_thrust)
+    rospy.set_param(ns + quad_name + '/hover_thrust', quad.hover_thrust)
    
     if compile:
         rospy.loginfo("Compiling MHE Acados model...")

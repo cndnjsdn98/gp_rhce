@@ -85,7 +85,13 @@ private:
     double ubx0_[NBX0];
     
     // MPC Parameters
-    std::vector<double> x_init_, u0_, params_, xt_ref_, x_ref_;
+    // Eigen::VectorXd x_init_, u0_, params_, xt_ref_, x_ref_;
+    Eigen::Matrix<double, MPC_NX, 1> x_init_;
+    Eigen::Matrix<double, MPC_NU, 1> u0_;
+    Eigen::Matrix<double, MPC_NP, 1> params_;
+    Eigen::Matrix<double, MPC_NX, 1> xt_ref_;
+    Eigen::Matrix<double, MPC_NX + MPC_NU, 1> x_ref_;
+
     double optimization_dt_;
 
 public:
@@ -95,10 +101,10 @@ public:
     // Deconstructor
     ~GP_MPC();
 
-    int solveMPC(const std::vector<double>& x_init, const std::vector<double>& u0);
-    void setReference(const std::vector<std::vector<double>>& x_ref, const std::vector<std::vector<double>>& u_ref);
-    void setParams(const std::vector<std::vector<double>>& params);
-    void getControls(std::vector<double>& x_opt, std::vector<double>& u_opt);
+    int solveMPC(const Eigen::VectorXd& x_init, const Eigen::VectorXd& u0);
+    void setReference(const Eigen::MatrixXd& x_ref, const Eigen::MatrixXd& u_ref);
+    void setParams(const Eigen::MatrixXd& params);
+    void getControls(Eigen::VectorXd& x_opt, Eigen::VectorXd& u_opt);
     double getOptimizationTime();
 };
 
