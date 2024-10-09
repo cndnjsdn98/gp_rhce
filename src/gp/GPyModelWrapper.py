@@ -40,6 +40,7 @@ class GPyModelWrapper:
         self.model_type = model_type
         self.model_name = model_name
         self.mhe = mhe
+        self.keep_train_data = keep_train_data
         #  Get Model directory
         if model_dir is not None:
             self.gp_model_dir = os.path.join(model_dir, model_name)
@@ -67,7 +68,7 @@ class GPyModelWrapper:
     def train(self, train_x, train_y, train_iter, 
               induce_num=None, induce_points=None,
               dense_model_name=None,
-              verbose=0):
+              verbose=0, script_model=False):
         """
         Trains the GPy Model with the given input training dataset.
         :param train_x: Array of Training Input data
@@ -85,17 +86,25 @@ class GPyModelWrapper:
         :type induce_points: list
         :param dense_model_name: Name of the dense model used to predict training data
         :type dense_model_name: string
+        :param verbose: Verbose level ie. print level of Model training.
+        :type script_model: int
+        :param script_model: Boolean value indicating whether to script the model for libtorch.
+        :type script_model: bool
         """
         gpytorch.settings.cholesky_jitter(1e-5)
+        if self.keep_train_data:
+            self.train_x = train_x
+            self.train_y = train_y
+
         if self.model_type == "Exact":
             self.train_and_save_Exact_model(train_x, train_y, train_iter,
                                             dense_model_name=dense_model_name, 
-                                            verbose=verbose)
+                                            verbose=verbose, script_model=script_model)
         elif self.model_type == "Approx":
             self.train_and_save_Approx_model(train_x, train_y, train_iter,
                                              induce_num=induce_num, 
                                              induce_points=induce_points, 
-                                             verbose=verbose)
+                                             verbose=verbose, script_model=script_model)
         self.machine = 1
 
     def predict(self, input, skip_variance=False, gpu=False):
@@ -126,7 +135,14 @@ class GPyModelWrapper:
                     test_x[i] = test_x[i].cuda()
             else:
                 test_x = test_x.cuda()
-
+        else:
+            self.cpu()
+            if input.ndim == 1:
+                for i in range(len(input)):
+                    test_x[i] = test_x[i].cpu()
+                else:
+                    test_x = test_x.cpu()
+                    
         # Make predictions by feeding model through likelihood
         with torch.no_grad(), gpytorch.settings.memory_efficient(),  \
             gpytorch.settings.fast_computations(log_prob=False, covar_root_decomposition = False), \
@@ -302,7 +318,7 @@ class GPyModelWrapper:
 
     def train_and_save_Exact_model(self, train_x, train_y, train_iter,
                                    dense_model_name=None, 
-                                   verbose=0):
+                                   verbose=0, script_model=False):
         """
         Trains Exact GPy Model. 
         :param train_x: Array of Training Input data
@@ -313,6 +329,10 @@ class GPyModelWrapper:
         :type train_iter: integer
         :param dense_model_name: Name of the dense model used to predict training data
         :type dense_model_name: string
+        :param verbose: Verbose level ie. print level of Model training.
+        :type script_model: int
+        :param script_model: Boolean value indicating whether to script the model for libtorch.
+        :type script_model: bool
         """
         model_dict = {}
         likelihood_dict = {}
@@ -335,12 +355,13 @@ class GPyModelWrapper:
         for i, x_feature in enumerate(self.x_features):
             model = model_dict[x_feature].cpu().double()
             torch.save(model.state_dict(), os.path.join(self.gp_model_dir, "gpy_model_" + str(x_feature) + ".pth"))  
-            example_input = train_x[:1, i].clone().detach().double()
-            with torch.no_grad(), gpytorch.settings.fast_pred_var(), gpytorch.settings.trace_mode():
-                model.eval()
-                _ = model(example_input)
-                scripted_model = torch.jit.trace(MeanVarModelWrapper(model).double(), example_input)
-                scripted_model.save(os.path.join(self.gp_model_dir, "scripted_gpy_model_" + str(x_feature) + ".pth"))
+            if script_model:
+                example_input = train_x[:1, i].clone().detach().double()
+                with torch.no_grad(), gpytorch.settings.fast_pred_var(), gpytorch.settings.trace_mode():
+                    model.eval()
+                    _ = model(example_input)
+                    scripted_model = torch.jit.trace(MeanVarModelWrapper(model).double(), example_input)
+                    scripted_model.save(os.path.join(self.gp_model_dir, "scripted_gpy_model_" + str(x_feature) + ".pth"))
         if verbose >= 1:
             print(self.model_name)
         # Save Meta data
@@ -359,7 +380,7 @@ class GPyModelWrapper:
             pickle.dump(train_dataset, fp)
         
     def train_and_save_Approx_model(self, train_x, train_y, train_iter,
-                                    induce_num=20, induce_points=None, verbose=0):
+                                    induce_num=20, induce_points=None, verbose=0, script_model=False):
         """
         Trains Approx GPy Model. If the induce_num is not given then it induces with
         20 points, and if the induce_num is given then it trains an
@@ -376,6 +397,10 @@ class GPyModelWrapper:
         :type induce_num: integer
         :param induce_points: Array of inducing points for approximate GPy Model.
         :type induce_points: torch.Tensor
+        :param verbose: Verbose level ie. print level of Model training.
+        :type script_model: int
+        :param script_model: Boolean value indicating whether to script the model for libtorch.
+        :type script_model: bool
         """
         model_dict = {}
         likelihood_dict = {}
@@ -402,12 +427,13 @@ class GPyModelWrapper:
         for i, x_feature in enumerate(self.x_features):
             model = model_dict[x_feature].cpu().double()
             torch.save(model.state_dict(), os.path.join(self.gp_model_dir, "gpy_model_" + str(x_feature) + ".pth"))
-            wrapped_model = MeanVarModelWrapper(model).double()
-            example_input = train_x[:1, i].clone().detach().double()
-            with torch.no_grad(), gpytorch.settings.fast_pred_var(), gpytorch.settings.trace_mode():
-                _ = wrapped_model(example_input)
-                scripted_model = torch.jit.trace(wrapped_model, example_input)
-                scripted_model.save(os.path.join(self.gp_model_dir, "scripted_gpy_model_" + str(x_feature) + ".pth"))
+            if script_model:
+                wrapped_model = MeanVarModelWrapper(model).double()
+                example_input = train_x[:1, i].clone().detach().double()
+                with torch.no_grad(), gpytorch.settings.fast_pred_var(), gpytorch.settings.trace_mode():
+                    _ = wrapped_model(example_input)
+                    scripted_model = torch.jit.trace(wrapped_model, example_input)
+                    scripted_model.save(os.path.join(self.gp_model_dir, "scripted_gpy_model_" + str(x_feature) + ".pth"))
         # Save meta data
         train_length = train_x.shape[1]
         u_features = []
@@ -424,6 +450,8 @@ class GPyModelWrapper:
         """
         Visualize the model
         """
+        x = x.cpu()
+        y = y.cpu()
         # Plot data
         # Set Matplotlib interpreter as Latex
         plt.rcParams['text.usetex'] = True
@@ -485,6 +513,8 @@ class GPyModelWrapper:
             ax.plot(x_reg[:, i], pred[:, i] - ci, "C1--")
             ax.plot(x_reg[:, i], pred[:, i], "C1", label=r'GPy $\mu$', zorder=20)
             ax.scatter(x[:, i], y[:, i], c='royalblue', s=17, label="Data", alpha=0.45, zorder=0)
+            if self.keep_train_data:
+                ax.scatter(self.train_x[:, i], self.train_y[:, i], c="lightcoral", s=17, label="train data", alpha = 0.66, zorder=10)
             ax.set_xlabel(r"${" + label_in[idx_out] + "} \mathbf{[m/s]}$", fontsize=BIGGER_SIZE) 
             ax.set_ylabel(r"${" + label_out[idx_out] + "^{e}}$", fontsize=BIGGER_SIZE)
             ax.tick_params(axis='both', which='major', labelsize=MEDIUM_SIZE)

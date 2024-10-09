@@ -19,7 +19,7 @@ from src.utils.utils import skew_symmetric, v_dot_q
 from src.utils.DirectoryConfig import DirectoryConfig as DirConfig
 class QuadOptimizer:
     def __init__(self, quad, t_mpc=None, n_mpc=None, t_mhe=None, n_mhe=None, mhe_type=None,
-                 mpc_gpy_ensemble=None, mhe_gpy_ensemble=None,
+                 mpc_with_gp=False, mhe_with_gp=False,
                  change_mass=0):
         """
         :param quad: quadrotor object
@@ -39,10 +39,8 @@ class QuadOptimizer:
         """
         self.mhe_type = mhe_type 
         self.change_mass = change_mass
-        self.mpc_with_gpyTorch = mpc_gpy_ensemble is not None
-        self.mpc_gpy_ensemble = mpc_gpy_ensemble
-        self.mhe_with_gpyTorch = mhe_gpy_ensemble is not None
-        self.mhe_gpy_ensemble = mhe_gpy_ensemble
+        self.mpc_with_gp = mpc_with_gp
+        self.mhe_with_gp = mhe_with_gp
 
 
         self.T_mpc = t_mpc  # Time horizon for MPC
@@ -116,13 +114,13 @@ class QuadOptimizer:
             self.mpc_param = np.array([])
 
         # Model Disturbance terms for MHE and MPC with GP 
-        if self.mhe_with_gpyTorch:
+        if self.mhe_with_gp:
             self.d = cs.MX.sym('d', 3)  # acceleration disturbance (from GP) 
             self.d_dot = cs.MX.sym('d_dot', 3)
             self.w_d = cs.MX.sym('w_d', 3)  # acceleration disturbance
             self.n_d = 3
             self.d_init = np.array([0, 0, 0])
-        elif self.mpc_with_gpyTorch:
+        elif self.mpc_with_gp:
             self.d = cs.MX.sym('d', 3)  # acceleration disturbance (from GP) 
             self.d_dot = np.zeros((0, 0))
             self.w_d = np.zeros((0, 0))
@@ -151,7 +149,7 @@ class QuadOptimizer:
             # Full state vector (13-dimensional)
             self.x = cs.vertcat(self.x, self.d, self.param)
             self.x_dot = cs.vertcat(self.x_dot, self.d_dot, self.param_dot)
-            if self.mhe_with_gpyTorch:
+            if self.mhe_with_gp:
                 self.state_dim = 16
             else:
                 self.state_dim = 13
@@ -232,15 +230,16 @@ class QuadOptimizer:
         dynamics_equations = {}
 
         # Run GP inference if GP's available               
-        if self.mpc_with_gpyTorch and not mhe:
+        if self.mpc_with_gp and not mhe:
             # The corrections are passed in prior to the ocp_mpc.
             # These states are used to transform the corrections to world reference frame.
             # First tranformation will be done using the gp_x that will be passed in as params,
             # however the rest of the transformation will be done using the regular integrated states.     
-            gp_x = self.gp_x * self.trigger_var + self.x * (1 - self.trigger_var)
+            # gp_x = self.gp_x * self.trigger_var + self.x * (1 - self.trigger_var)
 
             # Transform back to world reference frame
-            gp_means = v_dot_q(self.d, gp_x[3:7])   
+            # gp_means = v_dot_q(self.d, gp_x[3:7])   
+            gp_means = v_dot_q(self.d, self.x[3:7])
 
             # Add GP mean prediction parameters and additive state noise if model is for MHE
             dynamics_equations[0] = nominal + cs.mtimes(self.B_x, gp_means)
@@ -251,10 +250,11 @@ class QuadOptimizer:
             dynamics_ = dynamics_equations[0]
             i_name = model_name + "_gpy"
 
-            params = cs.vertcat(self.mpc_param, self.gp_x, self.d, self.trigger_var)
+            # params = cs.vertcat(self.mpc_param, self.gp_x, self.d, self.trigger_var)
+            params = cs.vertcat(self.mpc_param, self.d)
             acados_models[0] = fill_in_acados_model(x=x_, x_dot=x_dot_, u=self.u, w=w_, p=params, dynamics=dynamics_, name=i_name, mhe=mhe)
 
-        elif self.mhe_with_gpyTorch and mhe:
+        elif self.mhe_with_gp and mhe:
             # The corrections are passed in prior to the ocp_mpc.
             # These states are used to transform the corrections to world reference frame.
             # First tranformation will be done using the gp_x that will be passed in as params,
@@ -340,7 +340,6 @@ class QuadOptimizer:
         """
         g = cs.vertcat(0.0, 0.0, 9.81)
         if mhe:
-            print(self.a)
             v_dynamics = v_dot_q(self.a, self.q) - g + self.w_v
         else:
             f_thrust = self.u * self.quad.max_thrust

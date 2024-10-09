@@ -30,7 +30,7 @@ class QuadOptimizerMPC(QuadOptimizer):
     def __init__(self, quad, t_mpc=1, n_mpc=10, 
                  q_mpc=None, qt_factor=None,r_mpc=None, 
                  model_name="quad_3d_acados_mpc", solver_options=None, 
-                 mpc_gpy_ensemble=None,
+                 mpc_with_gp=False, y_features=[],
                  compile_acados=True):
         """
         :param quad: quadrotor object
@@ -45,9 +45,9 @@ class QuadOptimizerMPC(QuadOptimizer):
         :param solver_options: Optional set of extra options dictionary for solvers.
         """
         super().__init__(quad, t_mpc=t_mpc, n_mpc=n_mpc,
-                         mpc_gpy_ensemble=mpc_gpy_ensemble)
+                         mpc_with_gp=mpc_with_gp)
 
-        self.mpc_with_gpyTorch = mpc_gpy_ensemble is not None
+        self.mpc_with_gp = mpc_with_gp
         # Weighted squared error loss function q = (p_xyz, a_xyz, v_xyz, r_xyz), r = (u1, u2, u3, u4)
         if q_mpc is None:
             q_mpc = np.array([10, 10, 10, 0.1, 0.1, 0.1, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05])
@@ -64,16 +64,14 @@ class QuadOptimizerMPC(QuadOptimizer):
         # Add one more weight to the rotation (use quaternion norm weighting in acados)
         q_mpc = np.concatenate((q_mpc[:3], np.mean(q_mpc[3:6])[np.newaxis], q_mpc[3:]))
 
-        # If using GpyTorch for MPC Set up Necessary variables
-        if self.mpc_with_gpyTorch:
-            self.mpc_gpy_ensemble = mpc_gpy_ensemble
-            self.mpc_gpy_ensemble.cpu()
-            self.mpc_gpy_x = [7, 8, 9]
-            self.B_x = np.zeros((13, 3))
-            for i, idx in enumerate([7, 8, 9]):
+        # If using gp for MPC Set up Necessary variables
+        if self.mpc_with_gp:
+            self.B_x = np.zeros((self.state_dim, len(y_features)))
+            for i, idx in enumerate(y_features):
                 self.B_x[idx, i] = 1
             self.lock = threading.Lock()
-            self.mpc_gp_params = cs.vertcat(self.gp_x, self.trigger_var, self.d)
+            # self.mpc_gp_params = cs.vertcat(self.gp_x, self.d, self.trigger_var)
+            self.mpc_gp_params = cs.vertcat(self.d)
 
         self.x_opt_acados = np.ndarray((self.N_mpc + 1, 13))
         self.w_opt_acados = np.ndarray((self.N_mpc, 4))
@@ -90,7 +88,7 @@ class QuadOptimizerMPC(QuadOptimizer):
         # Convert dynamics variables to functions of the state and input vectors
         for dyn_model_idx in nominal_with_gp.keys():
             dyn = nominal_with_gp[dyn_model_idx]
-            if self.mpc_with_gpyTorch:
+            if self.mpc_with_gp:
                 self.quad_xdot[dyn_model_idx] = cs.Function('x_dot', [self.x, self.u, cs.vertcat(self.mpc_param, self.mpc_gp_params)], [dyn], ['x', 'u', 'p'], ['x_dot'])
             else:
                 self.quad_xdot[dyn_model_idx] = cs.Function('x_dot', [self.x, self.u, self.mpc_param], [dyn], ['x', 'u', 'p'], ['x_dot'])
@@ -160,12 +158,12 @@ class QuadOptimizerMPC(QuadOptimizer):
         ocp_mpc.constraints.idxbu = np.array([0, 1, 2, 3])
 
         # Solver options
-        ocp_mpc.solver_options.qp_solver = 'FULL_CONDENSING_DAQP'
+        ocp_mpc.solver_options.qp_solver = 'FULL_CONDENSING_HPIPM' #'FULL_CONDENSING_DAQP'
         ocp_mpc.solver_options.hessian_approx = 'GAUSS_NEWTON'
         ocp_mpc.solver_options.integrator_type = 'ERK'
         ocp_mpc.solver_options.print_level = 0
-        ocp_mpc.solver_options.nlp_solver_type = 'SQP_RTI' if solver_options is None else solver_options["solver_type"]
-        ocp_mpc.solver_options.qp_solver_warm_start = 1 # Warm Start
+        ocp_mpc.solver_options.nlp_solver_type = 'SQP_RTI' #if solver_options is None else solver_options["solver_type"]
+        # ocp_mpc.solver_options.qp_solver_warm_start = 1 # Warm Start
 
         # Path to where code will be exported
         ocp_mpc.code_export_directory = os.path.join(self.acados_models_dir, "mpc")
@@ -183,15 +181,7 @@ def main():
     assert quad_name != None
     with_gp = rospy.get_param(ns + 'with_gp', default=False)
     change_mass = rospy.get_param(ns + 'change_mass', default=0)
-    gp_model_name = rospy.get_param(ns + 'gp_model_name', default="")
-    assert gp_model_name != ""
-    if with_gp:
-        model_type = gp_model_name.split("_")[0]
-        model_type = "Approx" if model_type == "a" else "Exact"
-
-        gp_model = GPyModelWrapper(model_type, gp_model_name, load=True, mhe=False)
-    else:
-        gp_model = None
+    y_features = rospy.get_param(ns + 'y_features', default=[7, 8, 9])
 
     # MPC Costs
     q_p = np.ones((1,3)) * rospy.get_param(ns + 'q_p', default=35)
@@ -214,7 +204,7 @@ def main():
     quad_opt = QuadOptimizerMPC(quad, t_mpc=t_mpc, n_mpc=n_mpc,
                                 q_mpc=q_mpc, qt_factor=qt_factor, r_mpc=r_mpc, 
                                 model_name=quad_name,
-                                mpc_gpy_ensemble=gp_model)
+                                mpc_with_gp=with_gp, y_features=y_features)
     return
 
 def init_compile():

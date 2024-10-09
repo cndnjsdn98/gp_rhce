@@ -66,6 +66,7 @@ include_directories(
   ${PROJECT_SOURCE_DIR}/include/mhe
   ${PROJECT_SOURCE_DIR}/include/mpc
   ${PROJECT_SOURCE_DIR}/include/gp
+  ${PROJECT_SOURCE_DIR}/include/utils
   ${catkin_INCLUDE_DIRS}
   acados_ocp/
   ${ACADOS_SOURCE_DIR}/include 
@@ -107,6 +108,7 @@ target_link_libraries(gp_mhe_node
   ${catkin_LIBRARIES}
   ${ACADOS_LIBS}
   ${ACADOS_OCP_DIR}/mhe/libacados_ocp_solver_mhe.so
+  ${TORCH_LIBRARIES}
 )
 
 target_link_libraries(gp_mpc_node

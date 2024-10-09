@@ -15,6 +15,12 @@
 #include <Eigen/Geometry>
 
 #include <gp_mhe.h>
+#include <random_utils.h>
+
+#include <torch/script.h>
+
+#include <iostream>
+#include <filesystem>
 
 class Node {
 private:
@@ -22,7 +28,7 @@ private:
     std::string environment_, quad_name_; 
     
     // MHE
-    GP_MHE* gp_mhe_;
+    std::unique_ptr<GP_MHE> gp_mhe_;
 
     // MHE Parameters
     int last_imu_seq_number_ = 0;
@@ -35,6 +41,12 @@ private:
     
     // GP Parameters
     bool with_gp_;
+    int n_features_;
+    std::string gp_model_dir_, gp_model_name_;
+    std::vector<int> x_features_, y_features_;
+    std::vector<torch::jit::IValue> gp_input_;
+    std::vector<torch::jit::script::Module> gp_model_;
+    Eigen::Vector3d gp_corr_, ab_;
 
     // Subscriber Topics 
     std::string imu_topic_, pose_topic_, twist_topic_, motor_thrust_topic_,
@@ -58,6 +70,13 @@ private:
     Eigen::VectorXd x_est_, p_, w_, a_, y_, u_, acceleration_est_;
     Eigen::MatrixXd u_hist_, y_hist_, u_hist_cp_, y_hist_cp_;
     bool hist_received_ = false;
+
+    // Simulate Sensor Noise
+    bool sensor_noise_ = false;
+    double p_noise_std_, r_noise_std_, a_noise_std_;
+    Eigen::MatrixXd V_;
+    Eigen::VectorXd noise_;
+    StandardNormal normal_dist_;
 
     // Recording Parameters 
     double optimization_dt_ = 0;

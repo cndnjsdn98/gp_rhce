@@ -65,7 +65,7 @@ private:
     std::vector<int> x_features_, y_features_;
     std::vector<torch::jit::IValue> gp_input_;
     std::vector<torch::jit::script::Module> gp_model_;
-    Eigen::MatrixXd gp_corr_ref_, gp_corr_, mpc_param_;
+    Eigen::MatrixXd gp_corr_ref_, gp_corr_;
     Eigen::Vector3d vb_;
     Eigen::Quaterniond q_inv_;
 
@@ -118,7 +118,7 @@ public:
 
 // Utils
 inline Eigen::Vector3d transformToBodyFrame(const Eigen::Quaterniond& q, const Eigen::Vector3d& v) {
-    return q.inverse() * v;
+    return q.conjugate() * v;
 }
 inline Eigen::Vector3d transformToWorldFrame(const Eigen::Quaterniond& q, const Eigen::Vector3d& v) {
     return q * v;
@@ -135,7 +135,7 @@ inline Eigen::MatrixXd tensorToEigen(const std::vector<at::Tensor>& tensor) {
     int cols = tensor[0].size(0);           // Number of columns = size of each tensor
 
     // Initialize an Eigen::MatrixXd of appropriate size
-    Eigen::MatrixXd eigen_matrix(rows, cols);
+    Eigen::MatrixXd eigen_matrix(cols, rows);
 
     // Copy data from each tensor into the Eigen matrix
     for (int i = 0; i < rows; ++i) {
@@ -145,7 +145,7 @@ inline Eigen::MatrixXd tensorToEigen(const std::vector<at::Tensor>& tensor) {
         }
 
         // Copy the tensor data into the corresponding row of the Eigen matrix
-        eigen_matrix.row(i) = Eigen::Map<Eigen::VectorXd>(tensor[i].data_ptr<double>(), cols);
+        eigen_matrix.col(i) = Eigen::Map<Eigen::VectorXd>(tensor[i].data_ptr<double>(), cols);
     }
 
     return eigen_matrix;

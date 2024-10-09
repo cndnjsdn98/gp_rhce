@@ -9,7 +9,7 @@ from src.gp.gp_utils import *
 from src.utils.DirectoryConfig import DirectoryConfig as DirConf
 from src.gp.GPDataset import GPDataset
 
-def train_MPC_gp(quad_name, model_type, trajectory_name, env, gt, epoch, n_dense_points=None, n_sparse_points=None, n_induce=None, verbose=0):
+def train_MPC_gp(quad_name, model_type, trajectory_name, env, gt, epoch, n_dense_points=None, n_sparse_points=None, n_induce=None, verbose=0,keep_train_data=False):
     """
     Train GP models for MPC model compensation. The trained GP model provides acceleration corrections to the dynamic model for
     improved accuracy of model prediction. 
@@ -46,23 +46,31 @@ def train_MPC_gp(quad_name, model_type, trajectory_name, env, gt, epoch, n_dense
     gp_ds = GPDataset(results_dir)
 
     # Select data points to be used
-    x_train = np.zeros((len(x_features_idx), n_dense_points))
-    y_train = np.zeros((len(x_features_idx), n_dense_points))
+    if n_dense_points is not None:
+        x_train = np.zeros((len(x_features_idx), n_dense_points))
+        y_train = np.zeros((len(x_features_idx), n_dense_points))
+    else:
+        x_train = np.zeros((len(x_features_idx), gp_ds.get_len()))
+        y_train = np.zeros((len(x_features_idx), gp_ds.get_len()))
     for i, (xi, yi) in enumerate(zip(x_features_idx, y_features_idx)):
         train_in, train_out = gp_ds.get_train_ds(xi, yi)
-        selected_idx =  distance_maximizing_points_1d(train_in, n_dense_points)
-        x_train[i, :] = np.squeeze(train_in[selected_idx])
-        y_train[i, :] = np.squeeze(train_out[selected_idx])
+        if n_dense_points is not None:
+            selected_idx =  distance_maximizing_points_1d(train_in, n_dense_points)
+            x_train[i, :] = np.squeeze(train_in[selected_idx])
+            y_train[i, :] = np.squeeze(train_out[selected_idx])
+        else:
+            x_train[i, :] = np.squeeze(train_in)
+            y_train[i, :] = np.squeeze(train_out)
     x_train = torch.Tensor(x_train.T)
     y_train = torch.Tensor(y_train.T)
 
     # Create GP Model
     model_name = "%s_%s_mpc_%d%s"%("e" if model_type == "Exact" else "a", 
                                    quad_name, 
-                                   n_dense_points, 
+                                   n_dense_points if n_dense_points is not None else -1, 
                                    "" if model_type == "Exact" else "-%d"%n_induce)
-    gp_model = GPyModelWrapper(model_type, model_name, load=load_model, x_features=x_features_idx, y_features=y_features_idx)
-    gp_model.train(x_train, y_train, epoch, induce_num=n_induce, verbose=verbose)
+    gp_model = GPyModelWrapper(model_type, model_name, load=load_model, x_features=x_features_idx, y_features=y_features_idx, keep_train_data=keep_train_data)
+    gp_model.train(x_train, y_train, epoch, induce_num=n_induce, verbose=verbose, script_model=False if model_type=="Exact" else True)
 
     x, y = gp_ds.get_train_ds()
     x = torch.Tensor(x[:, x_features_idx])
@@ -84,13 +92,13 @@ def train_MPC_gp(quad_name, model_type, trajectory_name, env, gt, epoch, n_dense
         s_model_name = "%s_%s_mpc_%d"%("e", 
                                        quad_name, 
                                        n_sparse_points)
-        gp_model = GPyModelWrapper(model_type, s_model_name, load=load_model, x_features=x_features_idx, y_features=y_features_idx)
-        gp_model.train(x_train, y_train, epoch, induce_num=n_induce, dense_model_name=model_name, verbose=verbose)
+        gp_model = GPyModelWrapper(model_type, s_model_name, load=load_model, x_features=x_features_idx, y_features=y_features_idx, keep_train_data=keep_train_data)
+        gp_model.train(x_train, y_train, epoch, induce_num=n_induce, dense_model_name=model_name, verbose=verbose, script_model=True)
         gp_model.visualize_model(x, y)
         
     return gp_model
 
-def train_MHE_gp(quad_name, model_type, trajectory_name, env, epoch, n_dense_points=None, n_sparse_points=None, n_induce=None, verbose=0):
+def train_MHE_gp(quad_name, model_type, trajectory_name, env, epoch, n_dense_points=None, n_sparse_points=None, n_induce=None, verbose=0, keep_train_data=False):
     """
     Train GP models for D-MHE model compensation. The trained GP model provides acceleration corrections to the dynamic model for
     improved accuracy of model prediction. 
@@ -125,23 +133,31 @@ def train_MHE_gp(quad_name, model_type, trajectory_name, env, epoch, n_dense_poi
     gp_ds = GPDataset(results_dir)
     
     # Select data points to be used
-    x_train = np.zeros((len(x_features_idx), n_dense_points))
-    y_train = np.zeros((len(x_features_idx), n_dense_points))
+    if n_dense_points is not None:
+        x_train = np.zeros((len(x_features_idx), n_dense_points))
+        y_train = np.zeros((len(x_features_idx), n_dense_points))
+    else:
+        x_train = np.zeros((len(x_features_idx), gp_ds.get_len()))
+        y_train = np.zeros((len(x_features_idx), gp_ds.get_len()))
     for i, (xi, yi) in enumerate(zip(x_features_idx, y_features_idx)):
         train_in, train_out = gp_ds.get_train_ds(xi, yi)
-        selected_idx =  distance_maximizing_points_1d(train_in, n_dense_points)
-        x_train[i, :] = np.squeeze(train_in[selected_idx])
-        y_train[i, :] = np.squeeze(train_out[selected_idx])
+        if n_dense_points is not None:
+            selected_idx =  distance_maximizing_points_1d(train_in, n_dense_points)
+            x_train[i, :] = np.squeeze(train_in[selected_idx])
+            y_train[i, :] = np.squeeze(train_out[selected_idx])
+        else:
+            x_train[i, :] = np.squeeze(train_in)
+            y_train[i, :] = np.squeeze(train_out)
     x_train = torch.Tensor(x_train.T)
     y_train = torch.Tensor(y_train.T)
 
     # Create GP Model
     model_name = "%s_%s_mhe_%d%s"%("e" if model_type == "Exact" else "a", 
                                    quad_name, 
-                                   n_dense_points, 
+                                   n_dense_points if n_dense_points is not None else -1, 
                                    "" if model_type == "Exact" else "-%d"%n_induce)
-    gp_model = GPyModelWrapper(model_type, model_name, load=load_model, x_features=x_features_idx, y_features=y_features_idx, mhe=True)
-    gp_model.train(x_train, y_train, epoch, induce_num=n_induce, verbose=verbose)
+    gp_model = GPyModelWrapper(model_type, model_name, load=load_model, x_features=x_features_idx, y_features=y_features_idx, mhe=True, keep_train_data=keep_train_data)
+    gp_model.train(x_train, y_train, epoch, induce_num=n_induce, verbose=verbose, script_model=False if model_type=="Exact" else True)
 
     x, y = gp_ds.get_train_ds()
     x = torch.Tensor(x[:, x_features_idx])
@@ -164,23 +180,24 @@ def train_MHE_gp(quad_name, model_type, trajectory_name, env, epoch, n_dense_poi
         s_model_name = "%s_%s_mhe_%d"%("e", 
                                        quad_name, 
                                        n_sparse_points)
-        gp_model = GPyModelWrapper(model_type, s_model_name, load=load_model, x_features=x_features_idx, y_features=y_features_idx, mhe=True)
-        gp_model.train(x_train, y_train, epoch, induce_num=n_induce, dense_model_name=model_name, verbose=verbose)
+        gp_model = GPyModelWrapper(model_type, s_model_name, load=load_model, x_features=x_features_idx, y_features=y_features_idx, mhe=True, keep_train_data=keep_train_data)
+        gp_model.train(x_train, y_train, epoch, induce_num=n_induce, dense_model_name=model_name, verbose=verbose, script_model=True)
         gp_model.visualize_model(x, y)
         
     return gp_model
 
 if __name__ == "__main__":
     quad_name = "hummingbird"
-    model_type = "Exact"
+    model_type = "Approx"
     trajectory_name = "lemniscate"
     environment = "gazebo"
     gt = True
-    mpc_epoch = 50
-    mhe_epoch = 100
-    n_dense_points = 100
+    mpc_epoch = 500
+    mhe_epoch = 1000
+    n_dense_points = None
     n_sparse_points = n_induce = 20
     verbose = 1
+    keep_train_data = True
     train_MPC_gp(quad_name, 
                  model_type, 
                  trajectory_name, 
@@ -190,7 +207,8 @@ if __name__ == "__main__":
                  n_dense_points=n_dense_points, 
                  n_sparse_points=n_sparse_points, 
                  n_induce=n_induce,
-                 verbose=verbose)
+                 verbose=verbose,
+                 keep_train_data=keep_train_data)
     train_MHE_gp(quad_name,
                  model_type,
                  trajectory_name,
@@ -199,4 +217,5 @@ if __name__ == "__main__":
                  n_dense_points=n_dense_points,
                  n_sparse_points=n_sparse_points,
                  n_induce=n_induce,
-                 verbose=verbose)
+                 verbose=verbose,
+                 keep_train_data=keep_train_data)

@@ -109,7 +109,6 @@ public:
     void setHistory(const Eigen::MatrixXd& y_history, const Eigen::MatrixXd& u_history);
     void getStateEst(Eigen::VectorXd& x_est);
     double getOptimizationTime();
-    int getMeasStateLen();
 };
 
 #endif

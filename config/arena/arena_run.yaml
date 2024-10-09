@@ -28,3 +28,5 @@ position_kd: 2.5
 body_rate_kp: 3
 body_rate_ki: 0.
 body_rate_kd: 0.00
+
+sensor_noise: false

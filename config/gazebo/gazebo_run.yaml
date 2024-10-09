@@ -1,7 +1,7 @@
 control_freq_factor: 5
 
 # Topic Names
-imu_topic: "/hummingbird/imu"
+imu_topic: "/hummingbird/ground_truth/imu"
 
 # Landing options
 land_z: 0.1
@@ -11,3 +11,18 @@ land_z_thr: 0.05
 # Approaching Init. Pos.
 init_thr: 0.3
 init_v: 0.5
+
+# Simulate Sensor Noise Levels
+sensor_noise: true
+# # Noise Level I ------------------
+# p_noise_std: 0.007
+# r_noise_std: 0.007
+# a_noise_std: 0.007
+# # Noise Level II -----------------
+# p_noise_std: 0.5
+# r_noise_std: 0.015
+# a_noise_std: 0.01
+# # Noise Level III ----------------
+p_noise_std: 1
+r_noise_std: 0.03
+a_noise_std: 0.1

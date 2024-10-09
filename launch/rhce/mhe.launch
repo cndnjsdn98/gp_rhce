@@ -1,5 +1,7 @@
 <?xml version="1.0"?>
 <launch>
+    <!-- Quad Name -->
+    <arg name="quad_name" default="clark"/>
     <!-- "gazebo" or "arena" to indicate the environment-->
     <arg name="env" default="arena"/>
 
@@ -8,8 +10,9 @@
     <arg name="n_mhe" default="50"/>
     <arg name="mhe_type" default="kinematic"/>
 
-    <!-- Quad Name -->
-    <arg name="quad_name" default="clark"/>
+    <!-- GP Parameters  -->
+    <arg name="with_gp" default="False"/>
+    <param name="gp_model_dir" value="$(find gp_rhce)/gp_models/"/>
 
     <!-- Parameter to indicate to compile acados model -->
     <arg name="compile" default="True"/>
@@ -28,6 +31,7 @@
         <param name="t_mhe" value="$(arg t_mhe)"/>
         <param name="n_mhe" value="$(arg n_mhe)"/>
         <param name="mhe_type" value="$(arg mhe_type)"/>
+        <param name="with_gp" value="$(arg with_gp)"/>
         <!-- Node runs Acados Compiler code and GP_MHE node sequentially -->
         <node name="gp_mhe_wrapper" pkg="gp_rhce" type="sequential_mhe.py" output="screen"/>
     </group>        
@@ -45,6 +49,7 @@
         <param name="t_mhe" value="$(arg t_mhe)"/>
         <param name="n_mhe" value="$(arg n_mhe)"/>
         <param name="mhe_type" value="$(arg mhe_type)"/>
+        <param name="with_gp" value="$(arg with_gp)"/>
         <!-- Node runs Acados Compiler code and GP_MHE node sequentially -->
         <node name="gp_mhe_wrapper" pkg="gp_rhce" type="sequential_mhe.py" output="screen"/>
     </group>

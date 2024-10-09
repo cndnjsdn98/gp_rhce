@@ -11,35 +11,21 @@
 
 using namespace ros;
 using namespace Eigen;
+namespace fs = std::filesystem;
 
 // Constructor
 Node::Node(ros::NodeHandle& nh) {
     initLaunchParameters(nh);
     initSubscribers(nh);
     initPublishers(nh);
-    gp_mhe_ = new GP_MHE(mhe_type_);
+
+    gp_mhe_ = std::make_unique<GP_MHE>(mhe_type_);
     if (gp_mhe_ == nullptr) {
         ROS_ERROR("FAILED TO CREATE GP_MHE INSTANCE");
         std::exit(EXIT_FAILURE);
     } 
-
-    // Init vectors
-    x_est_ = VectorXd::Zero(MHE_NX);
-    x_est_[IDX_Q_W] = 1;
-    p_ = VectorXd::Zero(N_POSITION_STATES);
-    w_ = VectorXd::Zero(N_RATE_STATES);
-    a_ = VectorXd::Zero(N_ACCEL_STATES);
-    y_ = VectorXd::Zero(gp_mhe_->getMeasStateLen() + MHE_NU);
-    u_ = VectorXd::Zero(N_MOTORS);
-    y_hist_ = MatrixXd::Zero(MHE_N, gp_mhe_->getMeasStateLen() + MHE_NU);
-    y_hist_cp_ = MatrixXd::Zero(MHE_N, gp_mhe_->getMeasStateLen() + MHE_NU);
-    u_hist_ = MatrixXd::Zero(MHE_N, N_MOTORS);
-    u_hist_cp_ = MatrixXd::Zero(MHE_N, N_MOTORS);
-    if (mhe_type_ == "kinematic") {
-        acceleration_est_ = VectorXd::Zero(N_ACCEL_STATES);
-    }
     
-    if (p_.isZero()) {
+    if (y_.isZero()) {
         ROS_INFO("MHE: Waiting for Sensor Measurement...");
         ros::Rate rate(10);
         while (p_.isZero() && ros::ok()) {
@@ -49,7 +35,6 @@ Node::Node(ros::NodeHandle& nh) {
     }
     if (mhe_type_ == "dynamic" && !input_received_) {
         // ROS_INFO("Don't initiate flight. Motor Thrusts not received yet. ");
-        u_ << hover_thrust_, hover_thrust_, hover_thrust_, hover_thrust_;
         ros::Rate rate(10);
         while (!input_received_ && ros::ok()) {
             ros::spinOnce();
@@ -70,7 +55,7 @@ Node::~Node() {
     if (mhe_thread_.joinable()) {
         mhe_thread_.join();
     }
-    delete gp_mhe_;
+    // delete gp_mhe_;
 }
 
 
@@ -84,10 +69,45 @@ void Node::initLaunchParameters(ros::NodeHandle& nh) {
 
     // MHE Parameters
     nh.param<std::string>(ns + "/mhe_type", mhe_type_, "kinematic");
+    nh.param<bool>(ns + "/with_gp", with_gp_, false);
+    
+    // Load GP models and initialize GP related vectors/matrices
+    if (with_gp_ && mhe_type_ == "dynamic") {
+        // Get Model name and directory
+        nh.param<std::string> ("/gp_model_dir", gp_model_dir_, "");
+        nh.param<std::string> (ns + "/gp_model_name", gp_model_name_, "");
+        assert(gp_model_dir_ != "" || gp_model_name_ != "");
+        // Get Model Correction features
+        nh.param<std::vector<int>> (ns + "/x_features", x_features_, {6, 7, 8});
+        nh.param<std::vector<int>> (ns + "/y_features", y_features_, {7, 8, 9});
+        n_features_ = x_features_.size();
+        assert(n_features_ != MHE_NY-MHE_NX-N_DYN_MEAS_STATES);
+        // Initialize matrix
+        gp_corr_ = VectorXd::Zero(n_features_);
+        ab_ = VectorXd::Zero(N_ACCEL_STATES);
+        gp_model_.resize(n_features_);
+        gp_input_.resize(1);
+        // load GP model
+        try {
+            for (int i = 0; i < n_features_; ++i) {
+                std::string gp_model_file = gp_model_dir_ + gp_model_name_ + "/scripted_gpy_model_" + std::to_string(x_features_[i]) + ".pth";
+                if (fs::exists(gp_model_file)) {
+                    gp_model_[i] = torch::jit::load(gp_model_file);
+                } else {
+                    ROS_ERROR("MHE: GP Model %s does not exists", gp_model_name_.c_str());
+                    return;
+                }
+            }
+            ROS_INFO("MHE: Loaded GP Models");
+        } catch (const c10::Error& e) {
+            ROS_ERROR("MHE: Error Loading the GP Model");
+            return;
+        }
+    }
 
     // Subscriber topic names
     nh.param<std::string>(ns + "/imu_topic", imu_topic_, "/mavros/imu/data_raw");
-    nh.param<std::string>(ns + "/pose_topic", pose_topic_, "/mocap/" + quad_name_ +"/pose");
+    nh.param<std::string>(ns + "/pose_topic", pose_topic_, "/mocap/" + quad_name_ + "/pose");
     nh.param<std::string>(ns + "/motor_thrust_topic", motor_thrust_topic_, "/" + quad_name_ + "/motor_thrust");
     nh.param<std::string>(ns + "/record_topic", record_topic_, "/" + quad_name_ + "/record");
     // Gazebo Specific Subscriber topic names
@@ -99,6 +119,48 @@ void Node::initLaunchParameters(ros::NodeHandle& nh) {
 
     // Quad hover thrust
     nh.param<double>(ns + "/" + quad_name_ + "/hover_thrust", hover_thrust_, 0.0);
+    
+    // Simulate sensor noise
+    nh.param<bool>(ns + "/sensor_noise", sensor_noise_, false);
+    nh.param<double>(ns + "/p_noise_std", p_noise_std_, 0.0);
+    nh.param<double>(ns + "/r_noise_std", r_noise_std_, 0.0);
+    nh.param<double>(ns + "/a_noise_std", a_noise_std_, 0.0);
+    Eigen::VectorXd v_std_p = Eigen::VectorXd::Ones(N_POSITION_STATES) * p_noise_std_;
+    Eigen::VectorXd v_std_r = Eigen::VectorXd::Ones(N_RATE_STATES) * r_noise_std_;
+    Eigen::VectorXd v_std_a = Eigen::VectorXd::Ones(N_ACCEL_STATES) * a_noise_std_;
+    if (mhe_type_ == "kinematic") {
+        Eigen::VectorXd v_std(N_KIN_MEAS_STATES);
+        v_std << v_std_p, v_std_r, v_std_a;
+        V_ = v_std.asDiagonal();
+        noise_ = VectorXd::Zero(N_KIN_MEAS_STATES);
+    } else if (mhe_type_ == "dynamic" && !with_gp_) {
+        Eigen::VectorXd v_std(N_DYN_MEAS_STATES);
+        v_std << v_std_p, v_std_r;
+        V_ = v_std.asDiagonal();
+        noise_ = VectorXd::Zero(N_DYN_MEAS_STATES);
+    } else if (mhe_type_ == "dynamic" && with_gp_) {
+        Eigen::VectorXd v_std(N_DYN_MEAS_STATES + n_features_);
+        v_std << v_std_p, v_std_r, VectorXd::Zero(n_features_);
+        V_ = v_std.asDiagonal();
+        noise_ = VectorXd::Zero(N_DYN_MEAS_STATES + n_features_);
+    }
+
+    // Init vectors
+    x_est_ = VectorXd::Zero(MHE_NX);
+    x_est_(IDX_Q_W) = 1;
+    p_ = VectorXd::Zero(N_POSITION_STATES);
+    w_ = VectorXd::Zero(N_RATE_STATES);
+    a_ = VectorXd::Zero(N_ACCEL_STATES);
+    u_ = VectorXd::Zero(N_MOTORS);
+    u_ << hover_thrust_, hover_thrust_, hover_thrust_, hover_thrust_;
+    y_ = VectorXd::Zero(MHE_NY - MHE_NX);
+    y_hist_ = MatrixXd::Zero(MHE_N, MHE_NY - MHE_NX);
+    y_hist_cp_ = MatrixXd::Zero(MHE_N, MHE_NY - MHE_NX);
+    u_hist_ = MatrixXd::Zero(MHE_N, N_MOTORS);
+    u_hist_cp_ = MatrixXd::Zero(MHE_N, N_MOTORS);
+    if (mhe_type_ == "kinematic") {
+        acceleration_est_ = VectorXd::Zero(N_ACCEL_STATES);
+    }
 }
 
 void Node::initSubscribers(ros::NodeHandle& nh) {
@@ -138,6 +200,19 @@ void Node::imuCallback(const sensor_msgs::Imu::ConstPtr& msg) {
         return;
     }
 
+    // Do the same as above for acceleration history if using GP
+    if (with_gp_) {
+        // Body Frame acceleration
+        ab_ << msg->linear_acceleration.x, 
+               msg->linear_acceleration.y, 
+               msg->linear_acceleration.z;
+        // Compute model error
+        for (int i = 0; i < n_features_; ++i) {
+            gp_input_[0]  = torch::tensor(ab_(i)).unsqueeze(0);
+            gp_corr_(i) = gp_model_[i].forward(gp_input_).toTensor().item<double>();
+        }
+    }
+
     // Concatenate p, w, and a into y
     if (mhe_type_ == "kinematic") {
         y_ << p_[0],
@@ -149,15 +224,31 @@ void Node::imuCallback(const sensor_msgs::Imu::ConstPtr& msg) {
               msg->linear_acceleration.x, 
               msg->linear_acceleration.y, 
               msg->linear_acceleration.z;
-    } else {
+        
+    } else if (!with_gp_) { // Dynamic with no GP
         y_ << p_[0],
               p_[1],
               p_[2],
               msg->angular_velocity.x,
               msg->angular_velocity.y,
               msg->angular_velocity.z;
+    } else { // Dynamic with GP
+        y_ << p_[0],
+              p_[1],
+              p_[2],
+              msg->angular_velocity.x,
+              msg->angular_velocity.y,
+              msg->angular_velocity.z,
+              gp_corr_(0),
+              gp_corr_(1),
+              gp_corr_(2);
     }
 
+    // Simulate Sensor noise
+    if (sensor_noise_) {
+        normal_dist_.fillWithNormal(noise_);
+        y_ += V_ * noise_;
+    }
 
     // Check if there are any skipped messages
     int skipped_messages = 0;
@@ -218,7 +309,6 @@ void Node::motorThrustCallback(const mav_msgs::Actuators::ConstPtr& msg) {
           msg->angular_velocities[2],
           msg->angular_velocities[3];
     input_received_ = true;
-
 }
 
 void Node::poseCallback(const geometry_msgs::PoseStamped::ConstPtr& msg) {

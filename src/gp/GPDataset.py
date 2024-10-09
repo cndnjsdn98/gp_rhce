@@ -6,7 +6,7 @@ import json
 import matplotlib.pyplot as plt
 from src.quad_opt.quad_optimizer import QuadOptimizer
 from src.quad_opt.quad import custom_quad_param_loader
-from src.utils.utils import separate_variables, v_dot_q, quaternion_inverse, vw_to_vb
+from src.utils.utils import world_to_body_velocity_mapping, separate_variables, v_dot_q, quaternion_inverse, vw_to_vb
 
 class GPDataset:
     def __init__(self, data_dir):
@@ -38,18 +38,59 @@ class GPDataset:
             # load flight data
             self.t = data["t"]
             self.dt = data["dt"]
-            self.x_in = data["state_in"]
+            self.x_in = data["state_in_Body"]
             self.error = data["error"]
 
             # Remove invalid entries (dt = 0)
             invalid = np.where(self.dt == 0)
             self.dt = np.delete(self.dt, invalid, axis=0)
             self.x_in = np.delete(self.x_in, invalid, axis=0)
-            self.error = np.delete(self.error, invalid, axis=0
-                               )
+            self.error = np.delete(self.error, invalid, axis=0)
             # GP input and output
             self.train_in = self.x_in
             self.train_out = self.error
+
+            # self.quad = custom_quad_param_loader(self.quad_name)
+            # self.quad_opt = QuadOptimizer(self.quad)
+            # for i in range(len(self.t)): 
+            #     x0 = data["state_in"][i]
+            #     x0_B = vw_to_vb(x0)
+            #     xf = data["state_out"][i]
+            #     xf_B = vw_to_vb(xf)
+
+            #     u = data['input_in'][i]
+            #     # _u = np.append(u, [0]) # Considering there is no mass change
+
+            #     dt = self.dt[i]
+
+            #     # Dynamic Model Pred
+            #     x_pred = self.quad_opt.forward_prop(x0, u, t_horizon=dt)
+            #     # x_pred = x_pred[-1, np.newaxis, :]
+            #     x_pred_B = vw_to_vb(x_pred)
+                
+            #     # MPC Model error
+            #     x_err = xf_B - x_pred_B
+            #     self.error[i] = x_err
+            # print(self.error.shape)
+            # # plt.plot(data["state_in"][:, 0], self.error[:, 0], 'o')
+            # # plt.plot(data["state_in"][:, 1], self.error[:, 1], 'o')
+            # # plt.plot(data["state_in"][:, 2], self.error[:, 2], 'o')
+            # # plt.plot(data["state_in"][:, 3], self.error[:, 3], 'o')
+            # # plt.plot(data["state_in"][:, 4], self.error[:, 4], 'o')
+            # # plt.plot(data["state_in"][:, 5], self.error[:, 5], 'o')
+            # # plt.plot(data["state_in"][:, 6], self.error[:, 6], 'o')
+            # # plt.plot(data["state_in"][:, 7], self.error[:, 7], 'o')
+            # # plt.plot(data["state_in"][:, 8], self.error[:, 8], 'o')
+            # # plt.plot(data["state_in"][:, 9], self.error[:, 9], 'o')
+            # error = data["state_out"] - data["x_pred"]
+            # error /= 0.01
+            # # plt.plot(self.t)
+            # plt.plot(data["state_out"][:, 7], error[:, 7])
+            # plt.plot(data["state_out"][:, 8], error[:, 8])
+            # plt.plot(data["state_out"][:, 9], error[:, 9])
+            # plt.show()
+            # self.train_out = self.error
+
         else:
             self.mpc = False
             self.mhe = True
@@ -77,3 +118,5 @@ class GPDataset:
         else:
             return self.train_in, self.train_out
     
+    def get_len(self):
+        return self.train_in.shape[0]

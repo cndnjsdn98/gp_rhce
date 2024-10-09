@@ -15,19 +15,6 @@ namespace fs = std::filesystem;
 
 // Constructor
 Node::Node(ros::NodeHandle& nh) {
-    // initialize vector sizes
-    x_ = VectorXd::Zero(MPC_NX);
-    p_ = VectorXd::Zero(N_POSITION_STATES);
-    q_.coeffs() << 0, 0, 0, 1;
-    v_ = VectorXd::Zero(N_VELOCITY_STATES);
-    w_ = VectorXd::Zero(N_RATE_STATES);
-    x_opt_ = VectorXd::Zero(MPC_NX);
-    u_opt_ = VectorXd::Zero(MPC_NU);  
-    x_ref_prov_ = VectorXd::Zero(MPC_NX);
-    u_ref_prov_ = VectorXd::Zero(MPC_NU);
-    x_available_ = false;
-    ref_received_ = false;
-
     initLaunchParameters(nh);
     initSubscribers(nh);
     initPublishers(nh);
@@ -96,9 +83,10 @@ void Node::initLaunchParameters(ros::NodeHandle& nh) {
         nh.param<std::vector<int>> (ns + "/x_features", x_features_, {7, 8, 9});
         nh.param<std::vector<int>> (ns + "/y_features", y_features_, {7, 8, 9});
         n_features_ = x_features_.size();
-        gp_corr_ = MatrixXd::Zero(MPC_N, n_features_);
-        mpc_param_ = MatrixXd::Zero(MPC_N, MPC_NP);
-        mpc_param_(0, MPC_NP-1) = 1; // TRIGGER VALUE
+        assert(n_features_ != MPC_NP);
+        gp_corr_ = MatrixXd::Zero(MPC_N, MPC_NP);
+        // mpc_param_ = MatrixXd::Zero(MPC_N, MPC_NP);
+        // mpc_param_(0, MPC_NP-1) = 1; // TRIGGER VALUE
         gp_model_.resize(n_features_);
         try {
             for (int i = 0; i < n_features_; ++i) {
@@ -106,7 +94,7 @@ void Node::initLaunchParameters(ros::NodeHandle& nh) {
                 if (fs::exists(gp_model_file)) {
                     gp_model_[i] = torch::jit::load(gp_model_file);
                 } else {
-                    ROS_ERROR("GP Model %s does not exists", gp_model_name_.c_str());
+                    ROS_ERROR("MPC: GP Model %s does not exists", gp_model_name_.c_str());
                 }
             }
             ROS_INFO("MPC: Loaded GP Models");
@@ -142,6 +130,19 @@ void Node::initLaunchParameters(ros::NodeHandle& nh) {
     nh.param<double>(ns + "/land_thr", land_thr_, 0.05); // Error allowed for landing
     nh.param<double>(ns + "/land_z", land_z_, 0.05); // landing height
     nh.param<double>(ns + "/land_dz", land_dz_, 0.1); // landing velocity
+
+    // initialize vector sizes
+    x_ = VectorXd::Zero(MPC_NX);
+    p_ = VectorXd::Zero(N_POSITION_STATES);
+    q_.coeffs() << 0, 0, 0, 1;
+    v_ = VectorXd::Zero(N_VELOCITY_STATES);
+    w_ = VectorXd::Zero(N_RATE_STATES);
+    x_opt_ = VectorXd::Zero(MPC_NX);
+    u_opt_ = VectorXd::Zero(MPC_NU);  
+    x_ref_prov_ = VectorXd::Zero(MPC_NX);
+    u_ref_prov_ = VectorXd::Zero(MPC_NU);
+    x_available_ = false;
+    ref_received_ = false;
 }
 
 void Node::initSubscribers(ros::NodeHandle& nh) {
@@ -221,10 +222,21 @@ void Node::referenceCallback(const gp_rhce::ReferenceTrajectory::ConstPtr& msg) 
         
         if (with_gp_) {
             gp_input_.resize(1);
-            std::vector<at::Tensor> gp_corr_ref;
-            gp_corr_ref.resize(n_features_);
+            std::vector<at::Tensor> gp_corr_ref(n_features_);
+            // gp_corr_ref.resize(n_features_);
+            Eigen::MatrixXd v_W_ref = x_ref_.block(0, IDX_VELOCITY_START, ref_len_, N_VELOCITY_STATES);
+            Eigen::MatrixXd q_ref = x_ref_.block(0, IDX_QUATERNION_START, ref_len_, N_QUATERNION_STATES);
+            Eigen::MatrixXd v_B_ref(ref_len_, N_VELOCITY_STATES); 
+            // Convert to Bodyframe
+            for (int i = 0; i < ref_len_; ++i) {
+                Eigen::Vector3d v_w = v_W_ref.row(i);
+                Eigen::Quaterniond q(q_ref(i, 0), q_ref(i, 1), q_ref(i, 2), q_ref(i, 3));
+                q.normalize();
+                v_B_ref.row(i) = transformToBodyFrame(q, v_w);
+            }
+            // Compute GP corrections
             for (int i = 0; i < n_features_; ++i) {
-                torch::Tensor input_tensor = torch::from_blob(x_ref_.col(i).data(), {ref_len_}, torch::kDouble);
+                torch::Tensor input_tensor = torch::from_blob(v_B_ref.col(i).data(), {ref_len_}, torch::kDouble);
                 gp_input_[0] = input_tensor;
                 // When GP model only predicts mean:
                 torch::Tensor pred = gp_model_[i].forward(gp_input_).toTensor();
@@ -430,7 +442,7 @@ void Node::setReferenceTrajectory() {
             ref_received_ = false;
         }
         if (with_gp_) {
-            gp_mpc_->setParams(mpc_param_);
+            gp_mpc_->setParams(gp_corr_);
         }
         return gp_mpc_->setReference(x_ref, u_ref);
     }
@@ -454,7 +466,10 @@ void Node::setReferenceTrajectory() {
         u_ref.row(0).head(MPC_NU) = u_ref_prov_;
 
         if (with_gp_) {
-            gp_mpc_->setParams(mpc_param_);
+            // if (gp_corr_.isZero()) {
+                gp_corr_ = MatrixXd::Zero(MPC_N, MPC_NP);
+            // }
+            gp_mpc_->setParams(gp_corr_);
         }
         return gp_mpc_->setReference(x_ref, u_ref);
     }
@@ -506,7 +521,7 @@ void Node::setReferenceTrajectory() {
             x_ref.row(0).segment(IDX_QUATERNION_START, N_QUATERNION_STATES) = x_ref_.row(0).segment(IDX_QUATERNION_START, N_QUATERNION_STATES);
         }
         if (with_gp_) {
-            gp_mpc_->setParams(mpc_param_);
+            gp_mpc_->setParams(gp_corr_);
         }
         return gp_mpc_->setReference(x_ref, u_ref);
     }
@@ -527,18 +542,22 @@ void Node::setReferenceTrajectory() {
             u_ref.row(i) = u_ref_.row(ii);
         }
         if (with_gp_) {
-            mpc_param_.row(0).head(MPC_NX) = x_;
+            // mpc_param_.row(0).head(MPC_NX) = x_;
             for (int i = 0; i < n_features_; ++i) {
                 // torch::Tensor vel = torch::tensor(x_(x_features_[i]));
-                gp_input_[0]  = torch::tensor(x_(x_features_[i])).unsqueeze(0);
+                gp_input_[0]  = torch::tensor(vb_(i)).unsqueeze(0);
                 gp_corr_(0, i) = gp_model_[i].forward(gp_input_).toTensor().item<double>();
+                // std::cout << gp_corr_(0, i) << std::endl;
             }
             for (int i = 1; i < MPC_N; ++i) {
                 int ii = std::min(i * control_freq_factor_ + mpc_idx_, ref_len_ - 1);
                 gp_corr_.row(i) = gp_corr_ref_.row(ii);
             }
-            mpc_param_.block(0, MPC_NX, MPC_N, n_features_) = gp_corr_;
-            gp_mpc_->setParams(mpc_param_);
+            // mpc_param_.block(0, MPC_NX, MPC_N, n_features_) = gp_corr_;
+            // std::cout << gp_corr_ << std::endl;
+            // std::cout << "_______________" << std::endl;
+            // std::cout << gp_corr_ << std::endl;
+            gp_mpc_->setParams(gp_corr_);
         }
         mpc_idx_++;
         return gp_mpc_->setReference(x_ref, u_ref);    
@@ -563,9 +582,10 @@ void Node::setReferenceTrajectory() {
         msg.data = false;
         record_pub_.publish(msg);
         if (with_gp_) {
-            mpc_param_ = MatrixXd::Zero(MPC_N, MPC_NP);
-            mpc_param_(0, MPC_NP-1) = 1; // TRIGGER VALUE
-            gp_mpc_->setParams(mpc_param_);
+            // mpc_param_ = MatrixXd::Zero(MPC_N, MPC_NP);
+            // mpc_param_(0, MPC_NP-1) = 1; // TRIGGER VALUE
+            gp_corr_ = MatrixXd::Zero(MPC_N, MPC_NP);
+            gp_mpc_->setParams(gp_corr_);
         }
         return gp_mpc_->setReference(x_ref, u_ref);
     }

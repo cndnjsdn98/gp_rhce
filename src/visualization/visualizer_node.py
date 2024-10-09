@@ -45,6 +45,9 @@ class VisualizerWrapper:
         self.mpc_with_gp = rospy.get_param("gp_mpc/with_gp", default=False)
         self.mhe_with_gp = rospy.get_param("gp_mhe/with_gp", default=False)
         self.mhe_type = rospy.get_param("gp_mhe/mhe_type", default=None)
+        # Override since K-MHE never uses GP
+        if self.mhe_type == "kinematic":
+            self.mhe_with_gp = False
 
         ns = rospy.get_namespace()
         self.results_dir = rospy.get_param("results_dir", default=None)
@@ -147,12 +150,13 @@ class VisualizerWrapper:
         self.record_sub = rospy.Subscriber(record_topic, Bool, self.record_callback, queue_size=1, tcp_nodelay=False)
 
         rospy.loginfo("Visualizer on standby listening...")
+        rospy.loginfo("MPC w/%s GP"% ("OUT" if not self.mpc_with_gp else ""))
         if self.mhe_type is not None:
-            rospy.loginfo("%s MHE detected"%self.mhe_type)
+            rospy.loginfo("%s MHE w/%s GP"%(self.mhe_type, "OUT" if not self.mhe_with_gp else ""))
 
 
     def save_recording_data(self):
-        # Remove Exceeding data entry if needed
+        # Remove Exceeding data entry if needed    
         while len(self.w_control) < self.seq_len:
             self.w_control = np.append(self.w_control, self.w_control[-1][np.newaxis], axis=0)
         self.w_control = self.w_control[:self.seq_len]
@@ -177,9 +181,9 @@ class VisualizerWrapper:
                 self.t_est = np.append(self.t_est, self.t_est[-1])
             self.x_est = self.x_est[:self.seq_len * 2]
             self.t_est = self.t_est[:self.seq_len * 2]
-
         # Save MPC results
         state_in = np.zeros((self.seq_len, self.x_act.shape[1]))
+        state_in_B = np.zeros((self.seq_len, self.x_act.shape[1]))
         state_out = np.zeros((self.seq_len, self.x_act.shape[1]))
         u_in = np.zeros((self.seq_len, 4))
         mpc_error = np.zeros_like(state_in)
@@ -191,6 +195,7 @@ class VisualizerWrapper:
             # TODO: Get states in body frame
             ii = i * 2
             x0 = self.x_act[ii]
+            x0_B = vw_to_vb(x0)
             xf = self.x_act[ii+1]
             xf_B = vw_to_vb(xf)
 
@@ -209,12 +214,15 @@ class VisualizerWrapper:
 
             # Save to array for plots
             mpc_t[i] = self.t_act[ii]
-            state_in[i] = self.x_act[ii] if self.use_groundtruth else self.x_est[ii]
-            state_out[i] = self.x_act[ii+1] if self.use_groundtruth else self.x_est[ii+1]
+            state_in[i] = x0 #if self.use_groundtruth else self.x_est[ii]
+            state_in_B[i] = x0_B
+            state_out[i] = xf #if self.use_groundtruth else self.x_est[ii+1]
             u_in[i] = u
             dt_traj[i] = dt
             x_pred_traj[i] = x_pred
             mpc_error[i] = x_err / dt if dt != 0 else 0
+        self.x_act = self.x_act[:self.seq_len * 2]
+        self.t_act = self.t_act[:self.seq_len * 2]
         mpc_tracking_error = rmse(self.t_ref, self.x_ref[:, :3], self.t_ref, state_in[:, :3])
         
         # Organize arrays to dictionary
@@ -231,6 +239,7 @@ class VisualizerWrapper:
             "x_pred": x_pred_traj,
             "input_in": u_in,
             "w_control": self.w_control,
+            "state_in_Body": state_in_B, 
             "error_pred": self.mpc_gpy_pred,
         }
         self.mpc_meta['rmse'] = mpc_tracking_error
@@ -248,6 +257,7 @@ class VisualizerWrapper:
         
         # Check MHE is running and if it is continue to save MHE results
         if len(self.x_est) > 0:
+            mhe = True
             # self.t_est = self.t_est - self.t_est[0]
             # while len(self.x_est) < self.seq_len * 2:
             #     self.x_est = np.append(self.x_est, self.x_est[-1][np.newaxis], axis=0)
@@ -296,7 +306,9 @@ class VisualizerWrapper:
                 # MHE Model Error
                 a_error = np.concatenate((np.zeros((1, 7)), a_meas - a_est_b, np.zeros((1, 3))), axis=None)
                 mhe_error[i] = a_error
-
+            mhe_p_error = rmse(self.t_act, self.x_act[:, :3], self.t_est, self.x_est[:, :3])
+            mhe_q_error = rmse(self.t_act, self.x_act[:, 3:7], self.t_est, self.x_est[:, 3:7])
+            mhe_v_error = rmse(self.t_act, self.x_act[:, 7:10], self.t_est, self.x_est[:, 7:10])
             # Organize arrays to dictionary
             mhe_dict = {
                 "t": self.t_imu,
@@ -309,6 +321,9 @@ class VisualizerWrapper:
                 "a_est_b": a_est_b_traj,
                 "accel_est": self.accel_est,
             } 
+            self.mhe_meta['p_rmse'] = mhe_p_error
+            self.mhe_meta['q_rmse'] = mhe_q_error
+            self.mhe_meta['v_rmse'] = mhe_v_error
             # Save results
             mhe_dir = os.path.join(self.mhe_dir, self.ref_traj_name)
             safe_mkdir_recursive(mhe_dir)
@@ -332,6 +347,8 @@ class VisualizerWrapper:
             else:
                 state_estimation_results(mhe_dir, self.t_act, self.x_act, self.t_est, self.x_est, self.t_imu, self.y,
                                         mhe_error, a_thrust=a_thrust_traj, a_meas=a_meas_traj, file_type='png', )
+        else:
+            mhe = False
         # --- Reset all vectors ---
         # Vectors to store Reference Trajectory
         self.seq_len = None
@@ -362,26 +379,12 @@ class VisualizerWrapper:
         self.p_meas = None
         self.w_meas = None
         self.a_meas = None
-        rospy.loginfo("Recording Complete. Total Control RMSE: %.5f m. Max Vel: %.3f m/s" % (mpc_tracking_error, v_max))
-    # def pose_callback(self, msg):
-    #     if not self.record:
-    #         return
-        
-    #     self.p_meas = [msg.pose.position.x, msg.pose.position.y, msg.pose.position.z]
-    #     self.p_act = [msg.pose.position.x, msg.pose.position.y, msg.pose.position.z]
-    #     self.q_act = [msg.pose.orientation.w, msg.pose.orientation.x, msg.pose.orientation.y, msg.pose.orientation.z]
-
-    #     if self.v_act is not None and self.w_act is not None:
-    #         x = self.p_act + self.q_act + self.v_act + self.w_act
-    #         self.x_act = np.append(self.x_act, np.array(x)[np.newaxis, :], axis=0)
-    #     self.t_act = np.append(self.t_act, msg.header.stamp.to_time())
-
-    # def twist_callback(self, msg):
-    #     if not self.record:
-    #         return
-        
-    #     self.v_act = [msg.twist.linear.x, msg.twist.linear.y, msg.twist.linear.z]
-    #     self.w_act = [msg.twist.angular.x*100, msg.twist.angular.y*100, msg.twist.angular.z*100]
+        rospy.loginfo("Recording Complete.")
+        rospy.loginfo("MPC: tracking RMSE: %.5f m. Max Vel: %.3f m/s" % (mpc_tracking_error, v_max))
+        if mhe:
+            rospy.loginfo("MHE: p Estimation RMSE: %.5f m" % (mhe_p_error))
+            rospy.loginfo("MHE: q Estimation RMSE: %.5f rad" % (mhe_q_error))
+            rospy.loginfo("MHE: v Estimation RMSE: %.5f m/s" % (mhe_v_error))
     
     def imu_callback(self, msg):
         if not self.record:
@@ -516,7 +519,7 @@ class VisualizerWrapper:
         mpc_with_gp = rospy.get_param("gp_mpc/with_gp", default=None)
         if mpc_with_gp is not None and self.mpc_with_gp != mpc_with_gp:
             self.mpc_with_gp = mpc_with_gp
-            rospy.loginfo("MPC w/%s GP"%"OUT" if not mpc_with_gp else "")
+            rospy.loginfo("MPC w/%s GP"% ("OUT" if not mpc_with_gp else ""))
             self.mpc_dataset_name = "%s%s_mpc_%s%s"%("gp_" if self.mpc_with_gp else "",
                                                       self.env, 
                                                       "gt_" if self.use_groundtruth else "", 
@@ -530,7 +533,7 @@ class VisualizerWrapper:
         mhe_type = rospy.get_param("gp_mhe/mhe_type", default=None)
         if mhe_type is not None and self.mhe_type != mhe_type:
             self.mhe_type = mhe_type
-            rospy.loginfo("%s MHE detected"%self.mhe_type)
+            rospy.loginfo("%s MHE"%self.mhe_type)
             self.mhe_dataset_name = "%s%s_%smhe_%s"%("gp_" if self.mhe_with_gp else "",
                                                      self.env, 
                                                      "k" if self.mhe_type=="kinematic" else "d", 
@@ -541,6 +544,9 @@ class VisualizerWrapper:
             safe_mkdir_recursive(self.mhe_dir)
 
     def check_mhe_with_gp(self, event):
+        if self.mhe_type == "kinematic":
+            return
+        
         mhe_with_gp = rospy.get_param("gp_mhe/with_gp", default=None)
         if mhe_with_gp is not None and self.mhe_with_gp != mhe_with_gp:
             self.mhe_with_gp = mhe_with_gp

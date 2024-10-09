@@ -12,7 +12,7 @@
     <!-- Use Ground truth Odometry instead of State Estimation -->
     <arg name="use_groundtruth" default="True"/>
 
-    <!-- Parameter Indicating GPy  -->
+    <!-- GP Parameters  -->
     <arg name="with_gp" default="False"/>
     <param name="gp_model_dir" value="$(find gp_rhce)/gp_models/"/>
 

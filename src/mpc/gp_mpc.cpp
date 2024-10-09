@@ -90,9 +90,11 @@ void GP_MPC::setReference(const Eigen::MatrixXd& x_ref, const Eigen::MatrixXd& u
 void GP_MPC::setParams(const Eigen::MatrixXd& params) {
     for (int i = 0; i < MPC_N; i++) {
         params_ = params.row(i);
+        // std::cout << params_ << std::endl;
         // ocp_nlp_out_set(nlp_config_, nlp_dims_, nlp_out_, 0, "p", static_cast<void*>(params_.data()));
         mpc_acados_update_params(acados_ocp_capsule_, i, params_.data(), NP);
     }
+    // std::cout << "____________" << std::endl;
 }
 
 void GP_MPC::getControls(Eigen::VectorXd& x_opt, Eigen::VectorXd& u_opt) {

@@ -24,7 +24,7 @@ def custom_quad_param_loader(quad_name):
     # Get parameters for drone
     attrib = parse_xacro_file(quad_param)
 
-    quad = Quadrotor(noisy=False, drag=True, payload=False, motor_noise=False)
+    quad = Quadrotor(noisy=False, drag=False, payload=False, motor_noise=False)
     quad.quad_name = quad_name
 
     quad.mass = (float(attrib['mass']) + float(attrib['mass_rotor']) * 4)

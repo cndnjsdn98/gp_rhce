@@ -28,7 +28,8 @@ class QuadOptimizerMHE(QuadOptimizer):
     def __init__(self, quad, t_mhe=0.5, n_mhe=50, mhe_type="kinematic",
                  q_mhe=None, q0_factor=None, r_mhe=None, 
                  model_name="quad_3d_acados_mhe",
-                 mhe_gpy_ensemble=None, change_mass=0,
+                 mhe_with_gp=False, y_features=[],
+                 change_mass=0,
                  compile_acados=True):
         """
         :param quad: quadrotor object.
@@ -41,15 +42,15 @@ class QuadOptimizerMHE(QuadOptimizer):
         :param r_mhe: diagonal of Re matrix for measurement mismatch cost of MHE cost function. Must be a numpy array of length ___.
         :param B_x: dictionary of matrices that maps the outputs of the gp regressors to the state space.
         :param model_name: Acados model name.
-        :param mhe_gpy_ensemble: GPyEnsemble instance to be utilized in MHE
+        :param mhe_with_gp: GPyEnsemble instance to be utilized in MHE
         :param change_mass: Value of varying payload mass 
         # TODO: Change the chage_mass to be boolean
         """
         super().__init__(quad, t_mhe=t_mhe, n_mhe=n_mhe, mhe_type=mhe_type, 
-                         mhe_gpy_ensemble=mhe_gpy_ensemble)
+                         mhe_with_gp=mhe_with_gp)
         self.mhe_type = mhe_type 
         self.change_mass = change_mass
-        self.mhe_with_gpyTorch = mhe_gpy_ensemble is not None
+        self.mhe_with_gp = mhe_with_gp
 
         # Weighted squared error loss function q = (p_xyz, q_wxyz, v_xyz, r_xyz), r = (u1, u2, u3, u4)
         if q_mhe is None:
@@ -65,7 +66,7 @@ class QuadOptimizerMHE(QuadOptimizer):
             if mhe_type == "kinematic":
                 q_mhe = 1/np.squeeze(np.hstack((w_p, w_q, w_v, w_r, w_a)))
             elif mhe_type == "dynamic":
-                if not self.mhe_with_gpyTorch:
+                if not self.mhe_with_gp:
                     if change_mass != 0:
                         q_mhe = 1/np.squeeze(np.hstack((w_p, w_q, w_v, w_r, w_m)))
                     else:
@@ -83,9 +84,9 @@ class QuadOptimizerMHE(QuadOptimizer):
             v_a = np.ones((1,3)) * 1e-05                # Acceleration
             v_d = np.ones((1,3)) * 0.0001            # Disturbance
             # Inverse covariance
-            if mhe_type == "dynamic" and self.mhe_with_gpyTorch:
+            if mhe_type == "dynamic" and self.mhe_with_gp:
                 r_mhe = 1/np.squeeze(np.hstack((v_p, v_r, v_d))) 
-            elif mhe_type == "dynamic" and not self.mhe_with_gpyTorch:
+            elif mhe_type == "dynamic" and not self.mhe_with_gp:
                 r_mhe = 1/np.squeeze(np.hstack((v_p, v_r)))
             else:
                 r_mhe = 1/np.squeeze(np.hstack((v_p, v_r, v_a))) 
@@ -105,13 +106,9 @@ class QuadOptimizerMHE(QuadOptimizer):
         self.T_mhe = t_mhe  # Time horizon for MHE
         self.N_mhe = n_mhe  # number of nodes within estimation horizon
 
-        if self.mhe_with_gpyTorch:
-            self.mhe_gpy_ensemble = mhe_gpy_ensemble
-            self.mhe_gpy_ensemble.switch_modelDict_to_Batch()
-            self.mhe_gpy_ensemble.cpu()
-            self.mhe_gpy_x = [6, 7, 8]
-            self.B_x = np.zeros((16, 3))
-            for i, idx in enumerate([7, 8, 9]):
+        if self.mhe_with_gp:
+            self.B_x = np.zeros((self.state_dim, len(y_features)))
+            for i, idx in enumerate(y_features):
                 self.B_x[idx, i] = 1
 
             if self.n_param > 0:
@@ -260,6 +257,7 @@ def main():
         mhe_type = rospy.get_param(ns + 'mhe_type', default="kinematic")
         with_gp = rospy.get_param(ns + 'with_gp', default=False)
         change_mass = rospy.get_param(ns + 'change_mass', default=0)
+        y_features = rospy.get_param(ns + 'y_features', default=[7, 8, 9])
 
         # System Noise
         w_p = np.ones((1,3)) * rospy.get_param(ns + 'w_p', default=0.004)
@@ -280,29 +278,29 @@ def main():
         # System Weights
         if mhe_type == "kinematic":
             q_mhe = 1/np.squeeze(np.hstack((w_p, w_q, w_v, w_r, w_a)))
-        elif mhe_type == "dynamic":
-            if not with_gp:
-                if change_mass != 0:
-                    q_mhe = 1/np.squeeze(np.hstack((w_p, w_q, w_v, w_r, w_m)))
-                else:
-                    q_mhe = 1/np.squeeze(np.hstack((w_p, w_q, w_v, w_r)))
-            elif with_gp:
-                if change_mass != 0:
-                    q_mhe = 1/np.squeeze(np.hstack((w_p, w_q, w_v, w_r, w_d, w_m)))
-                else:
-                    q_mhe = 1/np.squeeze(np.hstack((w_p, w_q, w_v, w_r, w_d)))
+        elif mhe_type == "dynamic" and not with_gp:
+            if change_mass != 0:
+                q_mhe = 1/np.squeeze(np.hstack((w_p, w_q, w_v, w_r, w_m)))
+            else:
+                q_mhe = 1/np.squeeze(np.hstack((w_p, w_q, w_v, w_r)))
+        elif mhe_type == "dynamic" and with_gp:
+            if change_mass != 0:
+                q_mhe = 1/np.squeeze(np.hstack((w_p, w_q, w_v, w_r, w_d, w_m)))
+            else:
+                q_mhe = 1/np.squeeze(np.hstack((w_p, w_q, w_v, w_r, w_d)))
         q0_factor = 1 # arrival cost factor
-        if mhe_type == "dynamic" and with_gp:
+        if mhe_type == "kinematic":
+            r_mhe = 1/np.squeeze(np.hstack((v_p, v_r, v_a))) 
+        elif mhe_type == "dynamic" and with_gp:
             r_mhe = 1/np.squeeze(np.hstack((v_p, v_r, v_d))) 
         elif mhe_type == "dynamic" and not with_gp:
             r_mhe = 1/np.squeeze(np.hstack((v_p, v_r)))
-        else:
-            r_mhe = 1/np.squeeze(np.hstack((v_p, v_r, v_a))) 
 
         # Compile Acados Model
         quad_opt = QuadOptimizerMHE(quad, t_mhe=t_mhe, n_mhe=n_mhe, mhe_type=mhe_type,
                                     q_mhe=q_mhe, q0_factor=q0_factor, r_mhe=r_mhe,
-                                    model_name=quad_name, mhe_gpy_ensemble=None,
+                                    model_name=quad_name, 
+                                    mhe_with_gp=with_gp, y_features=y_features,
                                     change_mass=change_mass)
         rospy.loginfo("MHE Acados model Compiled Successfully...")
         
@@ -311,7 +309,7 @@ def main():
 def init_compile():
     quad_name = "clark"
     quad = custom_quad_param_loader(quad_name)
-    quad_opt = QuadOptimizerMHE(quad, mhe_type='dynamic')
+    quad_opt = QuadOptimizerMHE(quad, mhe_type='dynamic', mhe_with_gp=False)
 
 if __name__ == "__main__":
     main()

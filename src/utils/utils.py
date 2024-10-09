@@ -53,6 +53,22 @@ def vw_to_vb(x):
     xb[7:10] = vb
     return xb
 
+def world_to_body_velocity_mapping(state_sequence):
+    """
+
+    :param state_sequence: N x 13 state array, where N is the number of states in the sequence.
+    :return: An N x 13 sequence of states, but where the velocities (assumed to be in positions 7, 8, 9) have been
+    rotated from world to body frame. The rotation is made using the quaternion in positions 3, 4, 5, 6.
+    """
+
+    p, q, v_w, w = separate_variables(state_sequence)
+    v_b = []
+    for i in range(len(q)):
+        v_b.append(v_dot_q(v_w[i], quaternion_inverse(q[i])))
+    v_b = np.stack(v_b)
+    return np.concatenate((p, q, v_b, w), 1)
+
+
 def v_dot_q(v, q):
     rot_mat = q_to_rot_mat(q)
     if isinstance(q, np.ndarray):
@@ -183,6 +199,10 @@ def unwrap(p):
     #         p[i+1:] = p[i+1:] + (2*np.pi)
     #     elif (p[i+1]-p[i]) < -(2*np.pi-0.5):
     #         p[i+1:] = p[i+1:] - (2*np.pi)
+    # Check for NaN or infinite values
+    if np.any(np.isnan(p)) or np.any(np.isinf(p)):
+        raise ValueError("Input contains NaN or infinite values.")
+    
     dp = np.diff(p)
     dps = np.mod(dp+np.pi, 2*np.pi)-np.pi
     dps_loc = np.where((dps==-np.pi) & (dp>0))
@@ -219,11 +239,23 @@ def parse_xacro_file(xacro):
 
     return attrib_dict
 
-def rmse(t_1, x_1, t_2, x_2, n_interp_samples=1000):
+def rmse(t_1, x_1, t_2, x_2, n_interp_samples=4000):
     if np.all(t_1 == t_2):
         return np.mean(np.sqrt(np.sum((x_1 - x_2) ** 2, axis=1)))
 
     assert x_1.shape[1] == x_2.shape[1]
+
+    if t_1[0] != 0:
+        t_1 -= t_1[0]
+
+    if t_2[0] != 0:
+        t_2 -= t_2[0]
+
+    # Find duplicates
+    t_1, idx_1 = np.unique(t_1, return_index=True)
+    x_1 = x_1[idx_1, :]
+    t_2, idx_2 = np.unique(t_2, return_index=True)
+    x_2 = x_2[idx_2, :]
 
     t_min = max(t_1[0], t_2[0])
     t_max = min(t_1[-1], t_2[-1])
@@ -231,8 +263,8 @@ def rmse(t_1, x_1, t_2, x_2, n_interp_samples=1000):
     t_interp = np.linspace(t_min, t_max, n_interp_samples)
     err = np.zeros((n_interp_samples, x_1.shape[1]))
     for dim in range(x_1.shape[1]):
-        x1_interp = interp1d(np.squeeze(t_1), np.squeeze(x_1[:, dim]), kind='cubic')
-        x2_interp = interp1d(np.squeeze(t_2), np.squeeze(x_2[:, dim]), kind='cubic')
+        x1_interp = interp1d(np.squeeze(t_1), np.squeeze(x_1[:, dim]), kind='cubic', bounds_error=False, fill_value="extrapolate")
+        x2_interp = interp1d(np.squeeze(t_2), np.squeeze(x_2[:, dim]), kind='cubic', bounds_error=False, fill_value="extrapolate")
 
         x1_sample = x1_interp(t_interp)
         x2_sample = x2_interp(t_interp)
