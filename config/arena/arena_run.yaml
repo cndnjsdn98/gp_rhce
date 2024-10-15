@@ -10,7 +10,7 @@ land_dz: 0.15
 land_z_thr: 0.15
 
 # Approaching Init. Pos.
-init_thr: 0.3
+init_thr: 0.45
 init_v: 0.1
 
 # Mass change values

@@ -59,5 +59,6 @@ plugin_blacklist:
 - nav_controller_output
 - landing_target
 - geofence
+- guided_target 
 plugin_whitelist: []
 #- 'sys_*'

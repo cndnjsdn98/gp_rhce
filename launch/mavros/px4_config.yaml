@@ -34,10 +34,10 @@ imu:
 local_position:
   frame_id: "map"
   tf:
-    send: false
+    send: true
     frame_id: "map"
     child_frame_id: "base_link"
-    send_fcu: false
+    send_fcu: true
     
 # setpoint_accel
 setpoint_accel:
@@ -59,13 +59,13 @@ setpoint_raw:
   # the scaling needs to be unitary and the inputs should be 0..1 as well.
 
 # setpoint_position
-setpoint_position:
-  tf:
-    listen: false           # enable tf listener (disable topic subscribers)
-    frame_id: "map"
-    child_frame_id: "target_position"
-    rate_limit: 50.0
-  mav_frame: LOCAL_NED
+# setpoint_position:
+#   tf:
+#     listen: false           # enable tf listener (disable topic subscribers)
+#     frame_id: "map"
+#     child_frame_id: "target_position"
+#     rate_limit: 50.0
+#   mav_frame: LOCAL_NED
 
 # setpoint_velocity
 setpoint_velocity:

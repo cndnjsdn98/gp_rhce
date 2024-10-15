@@ -19,7 +19,7 @@ from geometry_msgs.msg import PoseStamped, Point, Quaternion, TwistStamped, Vect
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import Imu
 from collections import deque
-
+from mavros_msgs.srv import CommandHome
 
 def pose_parse(pose_msg):
     p = [pose_msg.pose.position.x, pose_msg.pose.position.y, pose_msg.pose.position.z]
@@ -83,14 +83,22 @@ class MocapOdomWrapper:
         self.pose_sub = rospy.Subscriber(pose_topic, PoseStamped, self.pose_callback, queue_size=10, tcp_nodelay=True)
         self.twist_sub = rospy.Subscriber(twist_topic, TwistStamped, self.twist_callback, queue_size=10, tcp_nodelay=True)
         self.imu_sub = rospy.Subscriber(imu_topic, Imu, self.imu_callback, queue_size=10, tcp_nodelay=True)
+        
+        # Rosservice
+        self.set_home_srv = rospy.ServiceProxy('/mavros/cmd/set_home', CommandHome)
+
+        # Set Home position
+        response = self.set_home_srv(current_gps=False, latitude=0.0, longitude=0.0, altitude=0.6)
+        # Check if the service call was successful
+        if response.success:
+            rospy.loginfo("Home position set to origin successfully.")
+        else:
+            rospy.logwarn("Failed to set home position.")
+
         self.seq_num = 0
         self.p, self.q, self.v, self.w = None, None, None, None
         
         mocap_hz = 100
-
-        # Check IMU Rate
-        self.rate_deque = deque(maxlen=50)
-        self.imu_rate = 100 # hz
 
         # Define the state-space model
         A = np.eye(13)  # state transition matrix
@@ -189,14 +197,6 @@ class MocapOdomWrapper:
         """
         self.w, _ = imu_parse(msg)
         # _, _ = imu_parse(msg)
-
-        self.rate_deque.append(msg.header.stamp.to_time())
-
-        if len(self.rate_deque) > 50:
-            duration = self.rate_deque[-1] - self.rate_deque[0]
-            rate = len(self.rate_deque) / duration
-            if (self.imu_rate - rate)**2 > 10:
-                rospy.logerr("Current Rate {:.2f} Hz".format(rate))
 
     def command_callback(self, msg):
         self.motor_speeds = tuple(thrust/self.quad.max_thrust for thrust in control_cmd_parse(msg))

@@ -25,6 +25,7 @@ set(${PROJECT_NAME}_CATKIN_DEPS
     nav_msgs
 )
 
+set(Torch_DIR "${PROJECT_SOURCE_DIR}/include/gp/libtorch/share/cmake/Torch")
 set(CMAKE_PREFIX_PATH "${PROJECT_SOURCE_DIR}/include/gp/libtorch")
 set(CMAKE_PREFIX_PATH "/opt/ros/noetic")
 set(CMAKE_CUDA_COMPILER /usr/local/cuda/bin/nvcc)

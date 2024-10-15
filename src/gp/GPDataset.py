@@ -37,8 +37,14 @@ class GPDataset:
 
             # load flight data
             self.t = data["t"]
-            self.dt = data["dt"]
-            self.x_in = data["state_in_Body"]
+            if "dt" in data.keys():
+                self.dt = data["dt"]
+            else:
+                self.dt = np.diff(self.t)
+            if "state_in_Body" in data.keys():
+                self.x_in = data["state_in_Body"]   
+            else:
+                self.x_in = world_to_body_velocity_mapping(data["state_in"])
             self.error = data["error"]
 
             # Remove invalid entries (dt = 0)

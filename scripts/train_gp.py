@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import os
 import numpy as np
 import matplotlib.pyplot as plt
@@ -187,35 +189,39 @@ def train_MHE_gp(quad_name, model_type, trajectory_name, env, epoch, n_dense_poi
     return gp_model
 
 if __name__ == "__main__":
-    quad_name = "hummingbird"
+    quad_name = "clara"
     model_type = "Approx"
-    trajectory_name = "lemniscate"
-    environment = "gazebo"
-    gt = True
-    mpc_epoch = 500
-    mhe_epoch = 1000
+    trajectory_name = "circle"
+    environment = "arena"
+    gt = False
+    mpc_epoch = 1000
+    mhe_epoch = 500
     n_dense_points = None
     n_sparse_points = n_induce = 20
     verbose = 1
     keep_train_data = True
-    train_MPC_gp(quad_name, 
-                 model_type, 
-                 trajectory_name, 
-                 environment, 
-                 gt, 
-                 mpc_epoch, 
-                 n_dense_points=n_dense_points, 
-                 n_sparse_points=n_sparse_points, 
-                 n_induce=n_induce,
-                 verbose=verbose,
-                 keep_train_data=keep_train_data)
-    train_MHE_gp(quad_name,
-                 model_type,
-                 trajectory_name,
-                 environment,
-                 mhe_epoch,
-                 n_dense_points=n_dense_points,
-                 n_sparse_points=n_sparse_points,
-                 n_induce=n_induce,
-                 verbose=verbose,
-                 keep_train_data=keep_train_data)
+    train_mpc = False
+    train_mhe = True
+    if train_mpc:
+        train_MPC_gp(quad_name, 
+                    model_type, 
+                    trajectory_name, 
+                    environment, 
+                    gt, 
+                    mpc_epoch, 
+                    n_dense_points=n_dense_points, 
+                    n_sparse_points=n_sparse_points, 
+                    n_induce=n_induce,
+                    verbose=verbose,
+                    keep_train_data=keep_train_data)
+    if train_mhe:
+        train_MHE_gp(quad_name,
+                    model_type,
+                    trajectory_name,
+                    environment,
+                    mhe_epoch,
+                    n_dense_points=n_dense_points,
+                    n_sparse_points=n_sparse_points,
+                    n_induce=n_induce,
+                    verbose=verbose,
+                    keep_train_data=keep_train_data)

@@ -91,7 +91,7 @@ class GPyModelWrapper:
         :param script_model: Boolean value indicating whether to script the model for libtorch.
         :type script_model: bool
         """
-        gpytorch.settings.cholesky_jitter(1e-5)
+        # gpytorch.settings.cholesky_jitter(1e-4)
         if self.keep_train_data:
             self.train_x = train_x
             self.train_y = train_y
@@ -207,8 +207,8 @@ class GPyModelWrapper:
             # load state_dict
             state_dict = torch.load(os.path.join(self.gp_model_dir, "gpy_model_" + str(idx) + ".pth"))
             model.load_state_dict(state_dict)
-            model_dict[idx] = model.cuda().eval()
-            likelihood_dict[idx] = likelihood.cuda().eval()
+            model_dict[idx] = model.eval()
+            likelihood_dict[idx] = likelihood.eval()
         model = model_dict
         likelihood = likelihood_dict    
 
@@ -248,10 +248,10 @@ class GPyModelWrapper:
         :return Trained GPy Model and Likelihood
         """
         # Set up GPy Model
-        likelihood = gpytorch.likelihoods.GaussianLikelihood().cuda()
-        model = ExactGPModel(train_x, train_y, likelihood).cuda()
-        train_x = train_x.cuda()
-        train_y = train_y.cuda()
+        likelihood = gpytorch.likelihoods.GaussianLikelihood()
+        model = ExactGPModel(train_x, train_y, likelihood)
+        # train_x = train_x.cuda()
+        # train_y = train_y.cuda()
         
         # Set up Optimizer and objective function
         objective_function = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)
@@ -292,10 +292,10 @@ class GPyModelWrapper:
         if inducing_points is None:
             inducing_points = torch.linspace(min(train_x), max(train_x), induce_num)
 
-        train_x = train_x.cuda()
-        train_y = train_y.cuda()
-        model = ApproximateGPModel(inducing_points).cuda()
-        likelihood = gpytorch.likelihoods.GaussianLikelihood().cuda()
+        # train_x = train_x.cuda()
+        # train_y = train_y.cuda()
+        model = ApproximateGPModel(inducing_points)
+        likelihood = gpytorch.likelihoods.GaussianLikelihood()
         
         # Set up Optimizer and objective function
         objective_function = gpytorch.mlls.PredictiveLogLikelihood(likelihood, model, num_data = train_y.numel())
@@ -526,7 +526,7 @@ class GPyModelWrapper:
                 orientation='portrait', format='pdf',
                 transparent=True, bbox_inches='tight', metadata=None, pad_inches=0.01)
             plt.close(fig)
-            
+        # plt.show()
     def cpu(self):
         """
         Switch models to CPU if they are on GPU
